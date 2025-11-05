@@ -6,32 +6,36 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Layers } from "lucide-react";
 import { RiGithubLine, RiGoogleFill } from "react-icons/ri";
-import { useForm } from "@tanstack/react-form";
 import * as z from "zod";
+import { useForm } from "@tanstack/react-form";
 
-const loginSchema = z.object({
+const signUpSchema = z.object({
+	name: z.string().min(1, "name is required"),
 	email: z.email({ message: "please provide a valid email address" }),
 	password: z
 		.string()
 		.min(8, "password should have minimum of 8 characters")
 		.max(16, "password should have maximum of 16 characters"),
+	workspace: z.string().or(z.literal("")),
 });
 
-export const Route = createFileRoute("/login")({
-	component: LoginComponent,
+export const Route = createFileRoute("/signup/")({
+	component: SignUpComponent,
 });
 
-function LoginComponent() {
+function SignUpComponent() {
 	const form = useForm({
 		defaultValues: {
+			name: "",
 			email: "",
 			password: "",
+			workspace: "",
 		},
 		onSubmit: async ({ value }) => {
 			console.log(value);
 		},
 		validators: {
-			onChange: loginSchema,
+			onChange: signUpSchema,
 		},
 	});
 
@@ -48,22 +52,43 @@ function LoginComponent() {
 					</span>
 				</Link>
 
-				{/* Login Card */}
 				<div className="bg-card border border-border rounded-lg p-8">
 					<div className="mb-6">
-						<h1 className="text-2xl font-semibold mb-2">Welcome back</h1>
+						<h1 className="text-2xl font-semibold mb-2">Create an account</h1>
 						<p className="text-sm text-muted-foreground">
-							Sign in to your account to continue
+							Get started with Collably for free
 						</p>
 					</div>
 
 					<form
-						className="space-y-4"
 						onSubmit={(e) => {
 							e.preventDefault();
+							e.stopPropagation();
 							form.handleSubmit();
 						}}
+						className="space-y-4"
 					>
+						<form.Field name="name">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="name">Full name</Label>
+									<Input
+										id={"name"}
+										type="text"
+										placeholder="John Doe"
+										className="h-10"
+										value={field.state.value}
+										onChange={(e) => field.handleChange(e.target.value)}
+									/>
+									{field.state.meta.errors.length > 0 && (
+										<p className="text-sm text-destructive">
+											{field.state.meta.errors[0]?.message}
+										</p>
+									)}
+								</div>
+							)}
+						</form.Field>
+
 						<form.Field name="email">
 							{(field) => (
 								<div className="space-y-2">
@@ -88,19 +113,11 @@ function LoginComponent() {
 						<form.Field name="password">
 							{(field) => (
 								<div className="space-y-2">
-									<div className="flex items-center justify-between">
-										<Label htmlFor="password">Password</Label>
-										<Link
-											to="/forgot-password"
-											className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-										>
-											Forgot password?
-										</Link>
-									</div>
+									<Label htmlFor="password">Password</Label>
 									<Input
 										id={"password"}
 										type="password"
-										placeholder="Enter your password"
+										placeholder="Create a strong password"
 										className="h-10"
 										value={field.state.value}
 										onChange={(e) => field.handleChange(e.target.value)}
@@ -114,18 +131,48 @@ function LoginComponent() {
 							)}
 						</form.Field>
 
-						<div className="flex items-center space-x-2">
-							<Checkbox id={"remember"} />
+						<form.Field name="workspace">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="workspace" className="text-muted-foreground">
+										Workspace name <span className="text-xs">(optional)</span>
+									</Label>
+									<Input
+										id={"workspace"}
+										type="text"
+										placeholder="Choose name for your default workspace"
+										className="h-10"
+										value={field.state.value}
+										onChange={(e) => field.handleChange(e.target.value)}
+									/>
+									{field.state.meta.errors.length > 0 && (
+										<p className="text-sm text-destructive">
+											{field.state.meta.errors[0]?.message}
+										</p>
+									)}
+								</div>
+							)}
+						</form.Field>
+
+						<div className="flex items-start space-x-2 pt-2">
+							<Checkbox id={"terms"} required className="mt-0.5" />
 							<label
-								htmlFor="remember"
-								className="text-sm text-muted-foreground cursor-pointer"
+								htmlFor="terms"
+								className="text-sm text-muted-foreground cursor-pointer leading-relaxed"
 							>
-								Remember me for 30 days
+								I agree to the{" "}
+								<Link to="." className="text-foreground hover:underline">
+									Terms of Service
+								</Link>{" "}
+								and{" "}
+								<Link to="." className="text-foreground hover:underline">
+									Privacy Policy
+								</Link>
 							</label>
 						</div>
 
 						<Button type="submit" className="w-full h-10">
-							Sign in
+							Create account
 						</Button>
 					</form>
 
@@ -148,14 +195,14 @@ function LoginComponent() {
 					</div>
 				</div>
 
-				{/* Sign up link */}
+				{/* Sign in link */}
 				<p className="text-center text-sm text-muted-foreground mt-6">
-					Don't have an account?{" "}
+					Already have an account?{" "}
 					<Link
-						to="/signup"
+						to="/login"
 						className="text-foreground hover:underline font-medium"
 					>
-						Sign up
+						Sign in
 					</Link>
 				</p>
 			</div>

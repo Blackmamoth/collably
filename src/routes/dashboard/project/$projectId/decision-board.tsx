@@ -212,6 +212,7 @@ function RouteComponent() {
 		startElementPos: { x: number; y: number };
 	} | null>(null);
 	const [showAISummary, setShowAISummary] = useState(false);
+	const [isFocusMode, setIsFocusMode] = useState(false);
 
 	const [commentsDialogOpen, setCommentsDialogOpen] = useState(false);
 	const [selectedNoteForComments, setSelectedNoteForComments] = useState<
@@ -573,6 +574,232 @@ function RouteComponent() {
 		setNewComment("");
 	};
 
+	const applyTemplate = (
+		templateType: "swot" | "retrospective" | "brainstorming",
+	) => {
+		let newElements: CanvasElement[] = [];
+
+		if (templateType === "swot") {
+			// SWOT Analysis: 4 quadrants
+			const baseX = 300;
+			const baseY = 200;
+			const spacing = 320;
+
+			newElements = [
+				// Title
+				{
+					id: Date.now(),
+					type: "text",
+					content: "SWOT Analysis",
+					fontSize: 32,
+					fontWeight: "bold",
+					color: "#ffffff",
+					position: { x: baseX + spacing, y: baseY - 80 },
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Strengths
+				{
+					id: Date.now() + 1,
+					type: "note",
+					content: "Strengths\n\nWhat are we good at?",
+					color: "green",
+					size: { width: 280, height: 200 },
+					position: { x: baseX, y: baseY },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Weaknesses
+				{
+					id: Date.now() + 2,
+					type: "note",
+					content: "Weaknesses\n\nWhat can we improve?",
+					color: "pink",
+					size: { width: 280, height: 200 },
+					position: { x: baseX + spacing, y: baseY },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Opportunities
+				{
+					id: Date.now() + 3,
+					type: "note",
+					content: "Opportunities\n\nWhat possibilities exist?",
+					color: "blue",
+					size: { width: 280, height: 200 },
+					position: { x: baseX, y: baseY + 240 },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Threats
+				{
+					id: Date.now() + 4,
+					type: "note",
+					content: "Threats\n\nWhat challenges do we face?",
+					color: "orange",
+					size: { width: 280, height: 200 },
+					position: { x: baseX + spacing, y: baseY + 240 },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+			];
+		} else if (templateType === "retrospective") {
+			// Retrospective: 3 columns
+			const baseX = 200;
+			const baseY = 200;
+			const spacing = 340;
+
+			newElements = [
+				// Title
+				{
+					id: Date.now(),
+					type: "text",
+					content: "Sprint Retrospective",
+					fontSize: 32,
+					fontWeight: "bold",
+					color: "#ffffff",
+					position: { x: baseX + spacing, y: baseY - 80 },
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// What went well
+				{
+					id: Date.now() + 1,
+					type: "note",
+					content: "What went well? 😊\n\nAdd your positive notes here",
+					color: "green",
+					size: { width: 300, height: 400 },
+					position: { x: baseX, y: baseY },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// What didn't go well
+				{
+					id: Date.now() + 2,
+					type: "note",
+					content: "What didn't go well? 🤔\n\nAdd challenges here",
+					color: "orange",
+					size: { width: 300, height: 400 },
+					position: { x: baseX + spacing, y: baseY },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Action items
+				{
+					id: Date.now() + 3,
+					type: "note",
+					content: "Action Items 🎯\n\nWhat will we do differently?",
+					color: "blue",
+					size: { width: 300, height: 400 },
+					position: { x: baseX + spacing * 2, y: baseY },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+			];
+		} else if (templateType === "brainstorming") {
+			// Brainstorming: Open canvas with starter notes
+			const baseX = 300;
+			const baseY = 200;
+
+			newElements = [
+				// Title
+				{
+					id: Date.now(),
+					type: "text",
+					content: "Brainstorming Session",
+					fontSize: 32,
+					fontWeight: "bold",
+					color: "#ffffff",
+					position: { x: baseX + 200, y: baseY - 80 },
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Central idea
+				{
+					id: Date.now() + 1,
+					type: "note",
+					content: "Main Topic\n\nWhat are we brainstorming about?",
+					color: "purple",
+					size: { width: 280, height: 180 },
+					position: { x: baseX + 200, y: baseY + 100 },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Idea 1
+				{
+					id: Date.now() + 2,
+					type: "note",
+					content: "Idea 1",
+					color: "yellow",
+					size: { width: 200, height: 140 },
+					position: { x: baseX, y: baseY },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Idea 2
+				{
+					id: Date.now() + 3,
+					type: "note",
+					content: "Idea 2",
+					color: "pink",
+					size: { width: 200, height: 140 },
+					position: { x: baseX + 520, y: baseY },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Idea 3
+				{
+					id: Date.now() + 4,
+					type: "note",
+					content: "Idea 3",
+					color: "blue",
+					size: { width: 200, height: 140 },
+					position: { x: baseX, y: baseY + 320 },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+				// Idea 4
+				{
+					id: Date.now() + 5,
+					type: "note",
+					content: "Idea 4",
+					color: "green",
+					size: { width: 200, height: 140 },
+					position: { x: baseX + 520, y: baseY + 320 },
+					votes: 0,
+					comments: [],
+					author: "Template",
+					timestamp: "Just now",
+				},
+			];
+		}
+
+		setElements([...elements, ...newElements]);
+		setSelectedTool("select");
+	};
+
 	const selectedElementData = elements.find((el) => el.id === selectedElement);
 	const selectedNoteData = elements.find(
 		(el) => el.id === selectedNoteForComments && el.type === "note",
@@ -650,79 +877,89 @@ function RouteComponent() {
 		);
 	};
 
-	const params = useParams({
-		from: "/dashboard/project/$projectId/decision-board",
-	});
-
 	return (
 		<div className="h-screen flex flex-col bg-background">
-			{/* Top Bar */}
-			<header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
-				<div className="flex items-center gap-4">
-					<Link to={`/dashboard/project/${params.projectId}`}>
-						<Button variant="ghost" size="icon">
-							<ArrowLeft className="w-5 h-5" />
-						</Button>
-					</Link>
-					<div>
-						<h1 className="font-semibold">Product Roadmap Q1</h1>
-						<p className="text-xs text-muted-foreground">Decision Board</p>
-					</div>
-				</div>
-
-				<div className="flex items-center gap-2">
-					{/* Team Avatars */}
-					<div className="flex items-center -space-x-2 mr-2">
-						{teamMembers.map((member, idx) => (
-							<div key={idx} className="relative">
-								<Avatar className="w-8 h-8 border-2 border-background">
-									<AvatarImage src={member.avatar || "/placeholder.svg"} />
-									<AvatarFallback>{member.name[0]}</AvatarFallback>
-								</Avatar>
-								{member.status === "online" && (
-									<span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" />
-								)}
-							</div>
-						))}
-					</div>
-
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setShowAISummary(!showAISummary)}
-					>
-						<Sparkles className="w-4 h-4 mr-2" />
-						AI Insights
-					</Button>
-
-					<Button variant="outline" size="sm">
-						<Share2 className="w-4 h-4 mr-2" />
-						Share
-					</Button>
-
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
+			{/* Top Bar - Hidden in focus mode */}
+			{!isFocusMode && (
+				<header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
+					<div className="flex items-center gap-4">
+						<Link href={`/dashboard/project/${params.id}`}>
 							<Button variant="ghost" size="icon">
-								<MoreVertical className="w-5 h-5" />
+								<ArrowLeft className="w-5 h-5" />
 							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem>
-								<Download className="w-4 h-4 mr-2" />
-								Export as PDF
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem>
-								<Users className="w-4 h-4 mr-2" />
-								Manage members
-							</DropdownMenuItem>
-							<DropdownMenuItem className="text-destructive">
-								Delete board
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
-			</header>
+						</Link>
+						<div>
+							<h1 className="font-semibold">Product Roadmap Q1</h1>
+							<p className="text-xs text-muted-foreground">Decision Board</p>
+						</div>
+					</div>
+
+					<div className="flex items-center gap-2">
+						{/* Team Avatars */}
+						<div className="flex items-center -space-x-2 mr-2">
+							{teamMembers.map((member, idx) => (
+								<div key={idx} className="relative">
+									<Avatar className="w-8 h-8 border-2 border-background">
+										<AvatarImage src={member.avatar || "/placeholder.svg"} />
+										<AvatarFallback>{member.name[0]}</AvatarFallback>
+									</Avatar>
+									{member.status === "online" && (
+										<span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" />
+									)}
+								</div>
+							))}
+						</div>
+
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								setIsFocusMode(true);
+								setSelectedTool("hand");
+							}}
+						>
+							<Presentation className="w-4 h-4 mr-2" />
+							Focus Mode
+						</Button>
+
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowAISummary(!showAISummary)}
+						>
+							<Sparkles className="w-4 h-4 mr-2" />
+							AI Insights
+						</Button>
+
+						<Button variant="outline" size="sm">
+							<Share2 className="w-4 h-4 mr-2" />
+							Share
+						</Button>
+
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="ghost" size="icon">
+									<MoreVertical className="w-5 h-5" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem>
+									<Download className="w-4 h-4 mr-2" />
+									Export as PDF
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem>
+									<Users className="w-4 h-4 mr-2" />
+									Manage members
+								</DropdownMenuItem>
+								<DropdownMenuItem className="text-destructive">
+									Delete board
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
+				</header>
+			)}
 
 			{/* Main Content */}
 			<div className="flex-1 flex overflow-hidden">
@@ -1118,105 +1355,149 @@ function RouteComponent() {
 					</div>
 
 					{/* Zoom Controls */}
-					<div className="absolute bottom-6 right-6 bg-card border border-border rounded-lg shadow-lg p-2 flex flex-col gap-2">
-						<Button
-							variant="ghost"
-							size="icon"
-							onClick={() => setZoom((z) => Math.min(3, z + 0.1))}
-						>
-							<ZoomIn className="w-4 h-4" />
-						</Button>
-						<Separator />
-						<div className="text-xs text-center px-2 font-mono">
-							{Math.round(zoom * 100)}%
+					{!isFocusMode && (
+						<div className="absolute bottom-6 right-6 bg-card border border-border rounded-lg shadow-lg p-2 flex flex-col gap-2">
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => setZoom((z) => Math.min(3, z + 0.1))}
+							>
+								<ZoomIn className="w-4 h-4" />
+							</Button>
+							<Separator />
+							<div className="text-xs text-center px-2 font-mono">
+								{Math.round(zoom * 100)}%
+							</div>
+							<Separator />
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => setZoom((z) => Math.max(0.1, z - 0.1))}
+							>
+								<ZoomOut className="w-4 h-4" />
+							</Button>
+							<Separator />
+							<Button variant="ghost" size="icon" onClick={() => setZoom(1)}>
+								<Maximize2 className="w-4 h-4" />
+							</Button>
 						</div>
-						<Separator />
-						<Button
-							variant="ghost"
-							size="icon"
-							onClick={() => setZoom((z) => Math.max(0.1, z - 0.1))}
-						>
-							<ZoomOut className="w-4 h-4" />
-						</Button>
-						<Separator />
-						<Button variant="ghost" size="icon" onClick={() => setZoom(1)}>
-							<Maximize2 className="w-4 h-4" />
-						</Button>
-					</div>
+					)}
 
-					<div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg shadow-lg p-2 flex items-center gap-1">
-						<Button
-							variant={selectedTool === "select" ? "default" : "ghost"}
-							size="sm"
-							onClick={() => setSelectedTool("select")}
-							title="Select (V)"
-						>
-							<MousePointer2 className="w-4 h-4" />
-						</Button>
-						<Button
-							variant={selectedTool === "hand" ? "default" : "ghost"}
-							size="sm"
-							onClick={() => setSelectedTool("hand")}
-							title="Hand Tool (H) - Pan canvas"
-						>
-							<Hand className="w-4 h-4" />
-						</Button>
-						<div className="w-px h-6 bg-border mx-1" />
-						<Button
-							variant={selectedTool === "note" ? "default" : "ghost"}
-							size="sm"
-							onClick={() => setSelectedTool("note")}
-							title="Sticky Note (N)"
-						>
-							<StickyNote className="w-4 h-4" />
-						</Button>
-						<Button
-							variant={selectedTool === "text" ? "default" : "ghost"}
-							size="sm"
-							onClick={() => setSelectedTool("text")}
-							title="Text (T)"
-						>
-							<Type className="w-4 h-4" />
-						</Button>
-						<div className="w-px h-6 bg-border mx-1" />
-						<Button
-							variant={selectedTool === "rectangle" ? "default" : "ghost"}
-							size="sm"
-							onClick={() => setSelectedTool("rectangle")}
-							title="Rectangle (R)"
-						>
-							<Square className="w-4 h-4" />
-						</Button>
-						<Button
-							variant={selectedTool === "circle" ? "default" : "ghost"}
-							size="sm"
-							onClick={() => setSelectedTool("circle")}
-							title="Circle (C)"
-						>
-							<Circle className="w-4 h-4" />
-						</Button>
-						<div className="w-px h-6 bg-border mx-1" />
-						<Button
-							variant={selectedTool === "arrow" ? "default" : "ghost"}
-							size="sm"
-							onClick={() => setSelectedTool("arrow")}
-							title="Arrow (A)"
-						>
-							<ArrowRight className="w-4 h-4" />
-						</Button>
-						<Button
-							variant={selectedTool === "line" ? "default" : "ghost"}
-							size="sm"
-							onClick={() => setSelectedTool("line")}
-							title="Line (L)"
-						>
-							<Minus className="w-4 h-4" />
-						</Button>
-					</div>
+					{/* Toolbar - Hidden in focus mode */}
+					{!isFocusMode && (
+						<div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg shadow-lg p-2 flex items-center gap-1">
+							<Button
+								variant={selectedTool === "select" ? "default" : "ghost"}
+								size="sm"
+								onClick={() => setSelectedTool("select")}
+								title="Select (V)"
+							>
+								<MousePointer2 className="w-4 h-4" />
+							</Button>
+							<Button
+								variant={selectedTool === "hand" ? "default" : "ghost"}
+								size="sm"
+								onClick={() => setSelectedTool("hand")}
+								title="Hand Tool (H) - Pan canvas"
+							>
+								<Hand className="w-4 h-4" />
+							</Button>
+							<div className="w-px h-6 bg-border mx-1" />
+							<Button
+								variant={selectedTool === "note" ? "default" : "ghost"}
+								size="sm"
+								onClick={() => setSelectedTool("note")}
+								title="Sticky Note (N)"
+							>
+								<StickyNote className="w-4 h-4" />
+							</Button>
+							<Button
+								variant={selectedTool === "text" ? "default" : "ghost"}
+								size="sm"
+								onClick={() => setSelectedTool("text")}
+								title="Text (T)"
+							>
+								<Type className="w-4 h-4" />
+							</Button>
+							<div className="w-px h-6 bg-border mx-1" />
+							<Button
+								variant={selectedTool === "rectangle" ? "default" : "ghost"}
+								size="sm"
+								onClick={() => setSelectedTool("rectangle")}
+								title="Rectangle (R)"
+							>
+								<Square className="w-4 h-4" />
+							</Button>
+							<Button
+								variant={selectedTool === "circle" ? "default" : "ghost"}
+								size="sm"
+								onClick={() => setSelectedTool("circle")}
+								title="Circle (C)"
+							>
+								<Circle className="w-4 h-4" />
+							</Button>
+							<div className="w-px h-6 bg-border mx-1" />
+							<Button
+								variant={selectedTool === "arrow" ? "default" : "ghost"}
+								size="sm"
+								onClick={() => setSelectedTool("arrow")}
+								title="Arrow (A)"
+							>
+								<ArrowRight className="w-4 h-4" />
+							</Button>
+							<Button
+								variant={selectedTool === "line" ? "default" : "ghost"}
+								size="sm"
+								onClick={() => setSelectedTool("line")}
+								title="Line (L)"
+							>
+								<Minus className="w-4 h-4" />
+							</Button>
+							<div className="w-px h-6 bg-border mx-1" />
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button variant="ghost" size="sm" title="Templates">
+										<LayoutTemplate className="w-4 h-4" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="center" side="top">
+									<DropdownMenuItem onClick={() => applyTemplate("swot")}>
+										<Square className="w-4 h-4 mr-2" />
+										SWOT Analysis
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onClick={() => applyTemplate("retrospective")}
+									>
+										<StickyNote className="w-4 h-4 mr-2" />
+										Retrospective
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onClick={() => applyTemplate("brainstorming")}
+									>
+										<Sparkles className="w-4 h-4 mr-2" />
+										Brainstorming
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</div>
+					)}
+
+					{isFocusMode && (
+						<div className="absolute top-6 right-6 bg-card border border-border rounded-lg shadow-lg">
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setIsFocusMode(false)}
+							>
+								<X className="w-4 h-4 mr-2" />
+								Exit Focus Mode
+							</Button>
+						</div>
+					)}
 				</div>
 
-				{/* AI Summary Sidebar */}
-				{showAISummary && (
+				{/* AI Summary Sidebar - Hidden in focus mode */}
+				{showAISummary && !isFocusMode && (
 					<div className="w-80 border-l border-border bg-card flex flex-col">
 						<div className="p-4 border-b border-border flex items-center justify-between">
 							<div className="flex items-center gap-2">

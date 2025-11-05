@@ -9,12 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SignupIndexRouteImport } from './routes/signup/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as SignupVerifyOtpRouteImport } from './routes/signup/verify-otp'
 import { Route as DashboardTeamRouteImport } from './routes/dashboard/team'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
 import { Route as DashboardWorkspaceSettingsIndexRouteImport } from './routes/dashboard/workspace/settings/index'
@@ -23,11 +24,6 @@ import { Route as DashboardProjectProjectIdTaskBoardRouteImport } from './routes
 import { Route as DashboardProjectProjectIdSettingsRouteImport } from './routes/dashboard/project/$projectId/settings'
 import { Route as DashboardProjectProjectIdDecisionBoardRouteImport } from './routes/dashboard/project/$projectId/decision-board'
 
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -48,9 +44,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupIndexRoute = SignupIndexRouteImport.update({
+  id: '/signup/',
+  path: '/signup/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/dashboard/',
   path: '/dashboard/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupVerifyOtpRoute = SignupVerifyOtpRouteImport.update({
+  id: '/signup/verify-otp',
+  path: '/signup/verify-otp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardTeamRoute = DashboardTeamRouteImport.update({
@@ -99,10 +105,11 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
-  '/signup': typeof SignupRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
+  '/signup/verify-otp': typeof SignupVerifyOtpRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/signup': typeof SignupIndexRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
   '/dashboard/project/$projectId/settings': typeof DashboardProjectProjectIdSettingsRoute
   '/dashboard/project/$projectId/task-board': typeof DashboardProjectProjectIdTaskBoardRoute
@@ -114,10 +121,11 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
-  '/signup': typeof SignupRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
+  '/signup/verify-otp': typeof SignupVerifyOtpRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/signup': typeof SignupIndexRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
   '/dashboard/project/$projectId/settings': typeof DashboardProjectProjectIdSettingsRoute
   '/dashboard/project/$projectId/task-board': typeof DashboardProjectProjectIdTaskBoardRoute
@@ -130,10 +138,11 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
-  '/signup': typeof SignupRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
+  '/signup/verify-otp': typeof SignupVerifyOtpRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/signup/': typeof SignupIndexRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
   '/dashboard/project/$projectId/settings': typeof DashboardProjectProjectIdSettingsRoute
   '/dashboard/project/$projectId/task-board': typeof DashboardProjectProjectIdTaskBoardRoute
@@ -147,10 +156,11 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/onboarding'
-    | '/signup'
     | '/dashboard/settings'
     | '/dashboard/team'
+    | '/signup/verify-otp'
     | '/dashboard'
+    | '/signup'
     | '/dashboard/project/$projectId/decision-board'
     | '/dashboard/project/$projectId/settings'
     | '/dashboard/project/$projectId/task-board'
@@ -162,10 +172,11 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/onboarding'
-    | '/signup'
     | '/dashboard/settings'
     | '/dashboard/team'
+    | '/signup/verify-otp'
     | '/dashboard'
+    | '/signup'
     | '/dashboard/project/$projectId/decision-board'
     | '/dashboard/project/$projectId/settings'
     | '/dashboard/project/$projectId/task-board'
@@ -177,10 +188,11 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/onboarding'
-    | '/signup'
     | '/dashboard/settings'
     | '/dashboard/team'
+    | '/signup/verify-otp'
     | '/dashboard/'
+    | '/signup/'
     | '/dashboard/project/$projectId/decision-board'
     | '/dashboard/project/$projectId/settings'
     | '/dashboard/project/$projectId/task-board'
@@ -193,10 +205,11 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
-  SignupRoute: typeof SignupRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardTeamRoute: typeof DashboardTeamRoute
+  SignupVerifyOtpRoute: typeof SignupVerifyOtpRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  SignupIndexRoute: typeof SignupIndexRoute
   DashboardProjectProjectIdDecisionBoardRoute: typeof DashboardProjectProjectIdDecisionBoardRoute
   DashboardProjectProjectIdSettingsRoute: typeof DashboardProjectProjectIdSettingsRoute
   DashboardProjectProjectIdTaskBoardRoute: typeof DashboardProjectProjectIdTaskBoardRoute
@@ -206,13 +219,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -241,11 +247,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup/': {
+      id: '/signup/'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/': {
       id: '/dashboard/'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup/verify-otp': {
+      id: '/signup/verify-otp'
+      path: '/signup/verify-otp'
+      fullPath: '/signup/verify-otp'
+      preLoaderRoute: typeof SignupVerifyOtpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/team': {
@@ -305,10 +325,11 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
-  SignupRoute: SignupRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardTeamRoute: DashboardTeamRoute,
+  SignupVerifyOtpRoute: SignupVerifyOtpRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  SignupIndexRoute: SignupIndexRoute,
   DashboardProjectProjectIdDecisionBoardRoute:
     DashboardProjectProjectIdDecisionBoardRoute,
   DashboardProjectProjectIdSettingsRoute:

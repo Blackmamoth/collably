@@ -235,7 +235,7 @@ function App() {
 
 					<div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
 						{/* Free Tier */}
-						<Card className="p-8 bg-card border-border">
+						<Card className="p-8 bg-card border-border transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:border-primary/50">
 							<div className="mb-6">
 								<h3 className="text-xl font-semibold mb-2">Free</h3>
 								<div className="flex items-baseline gap-1 mb-4">
@@ -270,7 +270,7 @@ function App() {
 						</Card>
 
 						{/* Pro Tier */}
-						<Card className="p-8 bg-card border-primary relative">
+						<Card className="p-8 bg-card border-primary relative transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-primary/20">
 							<Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
 								Most Popular
 							</Badge>
@@ -308,7 +308,7 @@ function App() {
 						</Card>
 
 						{/* Enterprise Tier */}
-						<Card className="p-8 bg-card border-border">
+						<Card className="p-8 bg-card border-border transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:border-primary/50">
 							<div className="mb-6">
 								<h3 className="text-xl font-semibold mb-2">Enterprise</h3>
 								<div className="flex items-baseline gap-1 mb-4">
@@ -323,7 +323,7 @@ function App() {
 								className="w-full mb-6 bg-transparent"
 								asChild
 							>
-								<Link to=".">Contact Sales</Link>
+								<Link to="/signup">Contact Sales</Link>
 							</Button>
 							<ul className="space-y-3">
 								<li className="flex items-start gap-3">
