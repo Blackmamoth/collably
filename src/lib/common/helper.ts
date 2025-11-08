@@ -16,6 +16,18 @@ export const handleSocialLogin = async (provider: "google" | "github") => {
 	);
 };
 
+export const setCurrentWorkspace = async (newWorkspaceId: string) => {
+	const { error } = await authClient.organization.setActive({
+		organizationId: newWorkspaceId,
+	});
+
+	if (error !== null) {
+		toast.error(
+			error.message || "Something went wrong! Could not switch workspace",
+		);
+	}
+};
+
 export const generateSlug = (input: string): string => {
 	return input
 		.toLowerCase() // Convert to lowercase

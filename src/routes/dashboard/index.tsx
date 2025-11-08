@@ -14,7 +14,7 @@ import RecentProjects from "@/components/dashboard/recent-projects";
 import ActivityFeed from "@/components/dashboard/activity-feed";
 import CreateWorkSpaceDialog from "@/components/dashboard/create-workspace-dialog";
 import CreateProjectDialog from "@/components/dashboard/create-project-dialog";
-import type { SessionWithOrganizationId } from "@/lib/common/types";
+import { useWorkspace } from "@/lib/workspace-context";
 
 export const Route = createFileRoute("/dashboard/")({
 	component: RouteComponent,
@@ -34,20 +34,19 @@ function RouteComponent() {
 	const [isCreateWorkspaceOpen, setIsCreateWorkspaceOpen] = useState(false);
 	const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
 
-	const { user, session } = useRouteContext({ from: Route.id });
+	const activeWorkspace = useWorkspace();
 
-	const sessionWithOrgId = session as SessionWithOrganizationId;
+	const { user } = useRouteContext({ from: Route.id });
 
 	const workspaces = useQuery(api.workspace.getWorkspaces) || [];
 	const projects =
 		useQuery(api.project.getProjects, {
-			workspaceId: sessionWithOrgId.activeOrganizationId || "",
+			workspaceId: activeWorkspace?.id || "",
 		}) || [];
 
 	return (
 		<div className="min-h-screen bg-background flex">
 			<DashboardSidebar
-				activeOrganizationId={sessionWithOrgId.activeOrganizationId}
 				projects={projects}
 				workspaces={workspaces}
 				isSidebarCollapsed={isSidebarCollapsed}
@@ -95,7 +94,6 @@ function RouteComponent() {
 			/>
 
 			<CreateProjectDialog
-				currentWorkspaceId={sessionWithOrgId.activeOrganizationId}
 				isCreateProjectOpen={isCreateProjectOpen}
 				setIsCreateProjectOpen={setIsCreateProjectOpen}
 			/>

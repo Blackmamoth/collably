@@ -1,11 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
 	AlertDialog,
@@ -18,32 +16,22 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import {
-	ArrowLeft,
-	Upload,
-	Trash2,
-	UserPlus,
-	MoreVertical,
-	CreditCard,
-} from "lucide-react";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ArrowLeft, Upload, Trash2, CreditCard } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useWorkspace } from "@/lib/workspace-context";
+import { NoWorkspacesEmpty } from "@/components/empty-states";
 
 export const Route = createFileRoute("/dashboard/workspace/settings/")({
 	component: RouteComponent,
+	beforeLoad: ({ context }) => {
+		const { user } = context;
+
+		if (user === undefined) {
+			throw redirect({ to: "/login" });
+		}
+
+		return { user };
+	},
 });
 
 function RouteComponent() {
@@ -51,31 +39,25 @@ function RouteComponent() {
 
 	const tabs = [
 		{ id: "general", label: "General" },
-		{ id: "members", label: "Members" },
 		{ id: "billing", label: "Billing" },
 		{ id: "danger", label: "Danger Zone" },
 	];
 
-	const members = [
-		{
-			name: "John Doe",
-			email: "john@example.com",
-			role: "Owner",
-			avatar: "/placeholder.svg",
-		},
-		{
-			name: "Alice Smith",
-			email: "alice@example.com",
-			role: "Admin",
-			avatar: "/placeholder.svg",
-		},
-		{
-			name: "Bob Johnson",
-			email: "bob@example.com",
-			role: "Member",
-			avatar: "/placeholder.svg",
-		},
-	];
+	const workspace = useWorkspace();
+
+	const navigate = useNavigate();
+
+	if (!workspace) {
+		return (
+			<div className="flex-1 flex items-center justify-center min-h-screen">
+				<NoWorkspacesEmpty
+					onCreateWorkspace={() => {
+						navigate({ to: "/dashboard" });
+					}}
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -134,7 +116,7 @@ function RouteComponent() {
 								<div className="space-y-4">
 									<div className="flex items-center gap-6">
 										<div className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-2xl font-bold text-primary-foreground">
-											MW
+											{workspace.name.split(" ").map((c) => c[0].toUpperCase())}
 										</div>
 										<div className="space-y-2">
 											<Button variant="outline" size="sm">
@@ -149,16 +131,9 @@ function RouteComponent() {
 
 									<div className="space-y-2">
 										<Label htmlFor="workspace-name">Workspace name</Label>
-										<Input id={"workspace-name"} defaultValue="My Workspace" />
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="workspace-description">Description</Label>
-										<Textarea
-											id={"workspace-description"}
-											placeholder="What's this workspace about?"
-											className="min-h-[100px]"
-											defaultValue="Our team's central hub for collaboration and project management."
+										<Input
+											id={"workspace-name"}
+											defaultValue={workspace.name}
 										/>
 									</div>
 
@@ -166,77 +141,6 @@ function RouteComponent() {
 										<Button>Save changes</Button>
 									</div>
 								</div>
-							</div>
-						)}
-
-						{activeTab === "members" && (
-							<div className="space-y-6">
-								<div className="flex items-center justify-between">
-									<div>
-										<h2 className="text-lg font-semibold mb-1">Members</h2>
-										<p className="text-sm text-muted-foreground">
-											Manage who has access to this workspace
-										</p>
-									</div>
-									<Button>
-										<UserPlus className="w-4 h-4 mr-2" />
-										Invite member
-									</Button>
-								</div>
-
-								<Separator />
-
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead>Member</TableHead>
-											<TableHead>Role</TableHead>
-											<TableHead className="w-[100px]"></TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{members.map((member, idx) => (
-											<TableRow key={idx}>
-												<TableCell>
-													<div className="flex items-center gap-3">
-														<Avatar className="w-8 h-8">
-															<AvatarImage
-																src={member.avatar || "/placeholder.svg"}
-															/>
-															<AvatarFallback>{member.name[0]}</AvatarFallback>
-														</Avatar>
-														<div>
-															<p className="font-medium text-sm">
-																{member.name}
-															</p>
-															<p className="text-xs text-muted-foreground">
-																{member.email}
-															</p>
-														</div>
-													</div>
-												</TableCell>
-												<TableCell>
-													<Badge variant="secondary">{member.role}</Badge>
-												</TableCell>
-												<TableCell>
-													<DropdownMenu>
-														<DropdownMenuTrigger asChild>
-															<Button variant="ghost" size="icon">
-																<MoreVertical className="w-4 h-4" />
-															</Button>
-														</DropdownMenuTrigger>
-														<DropdownMenuContent align="end">
-															<DropdownMenuItem>Change role</DropdownMenuItem>
-															<DropdownMenuItem className="text-destructive">
-																Remove member
-															</DropdownMenuItem>
-														</DropdownMenuContent>
-													</DropdownMenu>
-												</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
 							</div>
 						)}
 

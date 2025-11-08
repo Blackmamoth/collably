@@ -13,16 +13,16 @@ import {
 	Plus,
 	Settings,
 	Users,
-	Kanban,
 	PanelLeftClose,
 	PanelLeft,
 } from "lucide-react";
 import type { SetStateAction } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Project, Workspace } from "@/lib/common/types";
+import { setCurrentWorkspace } from "@/lib/common/helper";
+import { useWorkspace } from "@/lib/workspace-context";
 
 interface Props {
-	activeOrganizationId?: string;
 	projects: Project[];
 	workspaces: Workspace[];
 	isSidebarCollapsed: boolean;
@@ -32,7 +32,6 @@ interface Props {
 }
 
 export default function DashboardSidebar({
-	activeOrganizationId,
 	projects,
 	workspaces,
 	isSidebarCollapsed,
@@ -40,11 +39,10 @@ export default function DashboardSidebar({
 	setIsCreateWorkspaceOpen,
 	setIsCreateProjectOpen,
 }: Props) {
+	const activeWorkspace = useWorkspace();
+
 	const currentWorkspace =
-		activeOrganizationId && workspaces.length
-			? workspaces.find((w) => w.id === activeOrganizationId)?.name ||
-				"My Workspaces"
-			: "My Workspaces";
+		activeWorkspace !== null ? activeWorkspace.name : "My Workspaces";
 
 	return (
 		<aside
@@ -57,24 +55,27 @@ export default function DashboardSidebar({
 							<DropdownMenuTrigger asChild>
 								<Button
 									variant="ghost"
-									className="flex-1 justify-between h-10 px-3"
+									className="flex-1 justify-between h-10 px-3 min-w-0"
 								>
-									<div className="flex items-center gap-2">
-										<div className="w-6 h-6 bg-primary rounded-md flex items-center justify-center">
+									<div className="flex items-center gap-2 min-w-0 flex-1">
+										<div className="w-6 h-6 bg-primary rounded-md flex items-center justify-center shrink-0">
 											<Layers className="w-4 h-4 text-primary-foreground" />
 										</div>
-										<span className="font-semibold text-sm">
+										<span className="font-semibold text-sm truncate">
 											{currentWorkspace}
 										</span>
 									</div>
-									<ChevronDown className="w-4 h-4 text-muted-foreground" />
+									<ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="start" className="w-56">
 								<DropdownMenuLabel>Workspaces</DropdownMenuLabel>
 								<DropdownMenuSeparator />
 								{workspaces.map((workspace) => (
-									<DropdownMenuItem key={workspace.id}>
+									<DropdownMenuItem
+										key={workspace.id}
+										onClick={() => setCurrentWorkspace(workspace.id)}
+									>
 										<div className="flex items-center gap-2">
 											<div className="w-6 h-6 bg-primary rounded-md flex items-center justify-center">
 												<Layers className="w-3 h-3 text-primary-foreground" />
@@ -135,17 +136,18 @@ export default function DashboardSidebar({
 						)}
 						<div className="space-y-1">
 							{projects.map((project) => (
-								<>
-									<Link
-										to="/dashboard/project/$projectId"
-										params={{ projectId: project._id }}
-										className={`flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent text-sm transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
-										title={isSidebarCollapsed ? project.name : undefined}
-									>
-										<Layers className="w-4 h-4 text-muted-foreground shrink-0" />
-										{!isSidebarCollapsed && <span>{project.name}</span>}
-									</Link>
-								</>
+								<Link
+									key={project._id}
+									to="/dashboard/project/$projectId"
+									params={{ projectId: project._id }}
+									className={`flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent text-sm transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
+									title={isSidebarCollapsed ? project.name : undefined}
+								>
+									<Layers className="w-4 h-4 text-muted-foreground shrink-0" />
+									{!isSidebarCollapsed && (
+										<span className="truncate">{project.name}</span>
+									)}
+								</Link>
 							))}
 						</div>
 					</div>
@@ -159,15 +161,29 @@ export default function DashboardSidebar({
 					title={isSidebarCollapsed ? "Team Members" : undefined}
 				>
 					<Users className="w-4 h-4 text-muted-foreground shrink-0" />
-					{!isSidebarCollapsed && <span>Team Members</span>}
+					{!isSidebarCollapsed && (
+						<span className="truncate">Team Members</span>
+					)}
+				</Link>
+				<Link
+					to="/dashboard/workspace/settings"
+					className={`flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent text-sm transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
+					title={isSidebarCollapsed ? "Workspace Settings" : undefined}
+				>
+					<Settings className="w-4 h-4 text-muted-foreground shrink-0" />
+					{!isSidebarCollapsed && (
+						<span className="truncate">Workspace Settings</span>
+					)}
 				</Link>
 				<Link
 					to="/dashboard/settings"
 					className={`flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent text-sm transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
-					title={isSidebarCollapsed ? "Settings" : undefined}
+					title={isSidebarCollapsed ? "User Settings" : undefined}
 				>
 					<Settings className="w-4 h-4 text-muted-foreground shrink-0" />
-					{!isSidebarCollapsed && <span>Settings</span>}
+					{!isSidebarCollapsed && (
+						<span className="truncate">User Settings</span>
+					)}
 				</Link>
 			</div>
 		</aside>

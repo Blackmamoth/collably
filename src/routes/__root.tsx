@@ -33,6 +33,7 @@ import "@fontsource/geist-mono/700.css";
 import appCss from "../styles.css?url";
 import NotFound from "@/components/not-found";
 import { Toaster } from "@/components/ui/sonner";
+import { WorkspaceProvider } from "@/lib/workspace-context";
 
 const fetchAuth = createServerFn({ method: "GET" }).handler(async () => {
 	try {
@@ -109,32 +110,34 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					client={context.convexClient}
 					authClient={authClient}
 				>
-					<ThemeProvider
-						attribute="class"
-						defaultTheme="dark"
-						enableSystem
-						disableTransitionOnChange
-					>
-						{children}
-						<TanStackDevtools
-							config={{
-								position: "bottom-right",
-							}}
-							plugins={[
-								{
-									name: "Tanstack Router",
-									render: <TanStackRouterDevtoolsPanel />,
-								},
-							]}
-						/>
-						<Toaster
-							position="bottom-right"
-							expand={false}
-							richColors
-							closeButton
-							duration={4000}
-						/>
-					</ThemeProvider>
+					<WorkspaceProvider>
+						<ThemeProvider
+							attribute="class"
+							defaultTheme="dark"
+							enableSystem
+							disableTransitionOnChange
+						>
+							{children}
+							<TanStackDevtools
+								config={{
+									position: "bottom-right",
+								}}
+								plugins={[
+									{
+										name: "Tanstack Router",
+										render: <TanStackRouterDevtoolsPanel />,
+									},
+								]}
+							/>
+							<Toaster
+								position="bottom-right"
+								expand={false}
+								richColors
+								closeButton
+								duration={4000}
+							/>
+						</ThemeProvider>
+					</WorkspaceProvider>
 				</ConvexBetterAuthProvider>
 				<Scripts />
 			</body>

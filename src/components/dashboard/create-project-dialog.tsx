@@ -16,9 +16,9 @@ import { useForm } from "@tanstack/react-form";
 import * as z from "zod";
 import { Textarea } from "../ui/textarea";
 import { toast } from "sonner";
+import { useWorkspace } from "@/lib/workspace-context";
 
 interface Props {
-	currentWorkspaceId?: string;
 	isCreateProjectOpen: boolean;
 	setIsCreateProjectOpen: React.Dispatch<SetStateAction<boolean>>;
 }
@@ -29,11 +29,12 @@ const schema = z.object({
 });
 
 export default function CreateProjectDialog({
-	currentWorkspaceId,
 	isCreateProjectOpen,
 	setIsCreateProjectOpen,
 }: Props) {
 	const createProject = useMutation(api.project.createProject);
+
+	const activeWorkspace = useWorkspace();
 
 	const form = useForm({
 		defaultValues: {
@@ -44,7 +45,7 @@ export default function CreateProjectDialog({
 			onChange: schema,
 		},
 		onSubmit: async ({ value }) => {
-			if (!currentWorkspaceId) {
+			if (!activeWorkspace) {
 				toast.warning(
 					"You need to select a workspace before creating a project",
 				);
@@ -52,7 +53,7 @@ export default function CreateProjectDialog({
 			}
 			await createProject({
 				name: value.name,
-				workspaceId: currentWorkspaceId,
+				workspaceId: activeWorkspace.id,
 				description: value.description,
 			});
 			setIsCreateProjectOpen(false);

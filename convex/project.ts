@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { authComponent, createAuth } from "./auth";
+import { authComponent } from "./auth";
 
 export const createProject = mutation({
 	args: {
@@ -26,13 +26,15 @@ export const createProject = mutation({
 export const getProjects = query({
 	args: {
 		workspaceId: v.string(),
+		limit: v.optional(v.number()),
+		sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
 	},
-	handler: async (ctx, args) => {
+	handler: async (ctx, { workspaceId, limit, sortOrder }) => {
 		await authComponent.getAuthUser(ctx);
 		return await ctx.db
 			.query("project")
-			.withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
-			.order("asc")
-			.take(10);
+			.withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+			.order(sortOrder ?? "asc")
+			.take(limit ?? 10);
 	},
 });
