@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as project from "../project.js";
 import type * as workspace from "../workspace.js";
 
 import type {
@@ -29,6 +30,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
+  project: typeof project;
   workspace: typeof workspace;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

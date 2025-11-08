@@ -25,4 +25,3 @@ export const generateSlug = (input: string): string => {
 		.replace(/-+/g, "-") // Replace multiple hyphens with a single one
 		.replace(/^-|-$/g, ""); // Remove hyphens from the start or end of the string
 };
-
