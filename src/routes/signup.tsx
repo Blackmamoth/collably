@@ -1,4 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	redirect,
+	useNavigate,
+} from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +13,9 @@ import { Layers } from "lucide-react";
 import { RiGithubLine, RiGoogleFill } from "react-icons/ri";
 import * as z from "zod";
 import { useForm } from "@tanstack/react-form";
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
+import { handleSocialLogin } from "@/lib/common/helper";
 
 const signUpSchema = z.object({
 	name: z.string().min(1, "name is required"),
@@ -16,23 +24,47 @@ const signUpSchema = z.object({
 		.string()
 		.min(8, "password should have minimum of 8 characters")
 		.max(16, "password should have maximum of 16 characters"),
-	workspace: z.string().or(z.literal("")),
 });
 
-export const Route = createFileRoute("/signup/")({
+export const Route = createFileRoute("/signup")({
 	component: SignUpComponent,
+	beforeLoad: ({ context }) => {
+		const { user } = context;
+
+		if (user !== undefined) {
+			throw redirect({ to: "/dashboard" });
+		}
+	},
 });
 
 function SignUpComponent() {
+	const navigate = useNavigate();
+
 	const form = useForm({
 		defaultValues: {
 			name: "",
 			email: "",
 			password: "",
-			workspace: "",
 		},
 		onSubmit: async ({ value }) => {
-			console.log(value);
+			await authClient.signUp.email(
+				{
+					name: value.name,
+					email: value.email,
+					password: value.password,
+				},
+				{
+					onSuccess: () => {
+						navigate({
+							to: "/email/verify-otp",
+							search: { email: value.email },
+						});
+					},
+					onError: (ctx) => {
+						toast.error(ctx.error.message);
+					},
+				},
+			);
 		},
 		validators: {
 			onChange: signUpSchema,
@@ -131,29 +163,6 @@ function SignUpComponent() {
 							)}
 						</form.Field>
 
-						<form.Field name="workspace">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="workspace" className="text-muted-foreground">
-										Workspace name <span className="text-xs">(optional)</span>
-									</Label>
-									<Input
-										id={"workspace"}
-										type="text"
-										placeholder="Choose name for your default workspace"
-										className="h-10"
-										value={field.state.value}
-										onChange={(e) => field.handleChange(e.target.value)}
-									/>
-									{field.state.meta.errors.length > 0 && (
-										<p className="text-sm text-destructive">
-											{field.state.meta.errors[0]?.message}
-										</p>
-									)}
-								</div>
-							)}
-						</form.Field>
-
 						<div className="flex items-start space-x-2 pt-2">
 							<Checkbox id={"terms"} required className="mt-0.5" />
 							<label
@@ -184,11 +193,19 @@ function SignUpComponent() {
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<Button variant="outline" className="h-10 bg-transparent">
+						<Button
+							variant="outline"
+							className="h-10 bg-transparent"
+							onClick={() => handleSocialLogin("google")}
+						>
 							<RiGoogleFill className="w-4 h-4" />
 							Google
 						</Button>
-						<Button variant="outline" className="h-10 bg-transparent">
+						<Button
+							variant="outline"
+							className="h-10 bg-transparent"
+							onClick={() => handleSocialLogin("github")}
+						>
 							<RiGithubLine className="w-4 h-4" />
 							GitHub
 						</Button>

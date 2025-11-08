@@ -1,7 +1,23 @@
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
+import {
+	HeadContent,
+	Scripts,
+	createRootRouteWithContext,
+	useRouteContext,
+} from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { ThemeProvider } from "next-themes";
+import { createServerFn } from "@tanstack/react-start";
+import type { QueryClient } from "@tanstack/react-query";
+import type { ConvexQueryClient } from "@convex-dev/react-query";
+import type { ConvexReactClient } from "convex/react";
+import { getCookie, getRequest } from "@tanstack/react-start/server";
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import {
+	fetchSession,
+	getCookieName,
+} from "@convex-dev/better-auth/react-start";
+import { authClient } from "@/lib/auth-client";
 
 // Import Geist fonts
 import "@fontsource/geist-sans/400.css";
@@ -16,8 +32,30 @@ import "@fontsource/geist-mono/700.css";
 // Import your globals.css (copy from Taskloom project)
 import appCss from "../styles.css?url";
 import NotFound from "@/components/not-found";
+import { Toaster } from "@/components/ui/sonner";
 
-export const Route = createRootRoute({
+const fetchAuth = createServerFn({ method: "GET" }).handler(async () => {
+	try {
+		const { createAuth } = await import("../../convex/auth");
+		const { session } = await fetchSession(getRequest());
+		const sessionCookieName = getCookieName(createAuth);
+		const token = getCookie(sessionCookieName);
+		return {
+			user: session?.user,
+			session: session?.session,
+			token,
+		};
+	} catch (error) {
+		console.error(error);
+		return { user: undefined, session: undefined };
+	}
+});
+
+export const Route = createRootRouteWithContext<{
+	queryClient: QueryClient;
+	convexClient: ConvexReactClient;
+	convexQueryClient: ConvexQueryClient;
+}>()({
 	head: () => ({
 		meta: [
 			{
@@ -44,37 +82,60 @@ export const Route = createRootRoute({
 		],
 	}),
 
+	beforeLoad: async (ctx) => {
+		const { user, session, token } = await fetchAuth();
+
+		if (token) {
+			ctx.context.convexQueryClient.serverHttpClient?.setAuth(token);
+		}
+
+		return { user, session };
+	},
+
 	shellComponent: RootDocument,
 
 	notFoundComponent: NotFound,
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+	const context = useRouteContext({ from: Route.id });
 	return (
 		<html lang="en" className="dark" suppressHydrationWarning>
 			<head>
 				<HeadContent />
 			</head>
 			<body className="font-sans antialiased">
-				<ThemeProvider
-					attribute="class"
-					defaultTheme="dark"
-					enableSystem
-					disableTransitionOnChange
+				<ConvexBetterAuthProvider
+					client={context.convexClient}
+					authClient={authClient}
 				>
-					{children}
-					<TanStackDevtools
-						config={{
-							position: "bottom-right",
-						}}
-						plugins={[
-							{
-								name: "Tanstack Router",
-								render: <TanStackRouterDevtoolsPanel />,
-							},
-						]}
-					/>
-				</ThemeProvider>
+					<ThemeProvider
+						attribute="class"
+						defaultTheme="dark"
+						enableSystem
+						disableTransitionOnChange
+					>
+						{children}
+						<TanStackDevtools
+							config={{
+								position: "bottom-right",
+							}}
+							plugins={[
+								{
+									name: "Tanstack Router",
+									render: <TanStackRouterDevtoolsPanel />,
+								},
+							]}
+						/>
+						<Toaster
+							position="bottom-right"
+							expand={false}
+							richColors
+							closeButton
+							duration={4000}
+						/>
+					</ThemeProvider>
+				</ConvexBetterAuthProvider>
 				<Scripts />
 			</body>
 		</html>

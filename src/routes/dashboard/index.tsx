@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,9 +39,20 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NoProjectsEmpty } from "@/components/empty-states";
+import { useQuery } from "convex/react";
+import { api } from "convex/_generated/api";
 
 export const Route = createFileRoute("/dashboard/")({
 	component: RouteComponent,
+	beforeLoad: ({ context }) => {
+		const { user } = context;
+
+		if (user === undefined) {
+			throw redirect({ to: "/login" });
+		}
+
+		return { user };
+	},
 });
 
 function RouteComponent() {
@@ -49,6 +60,8 @@ function RouteComponent() {
 	const [isCreateWorkspaceOpen, setIsCreateWorkspaceOpen] = useState(false);
 	const [workspaceName, setWorkspaceName] = useState("");
 	const [workspaceDescription, setWorkspaceDescription] = useState("");
+
+	const workspaces = useQuery(api.workspace.getWorkspaces);
 
 	// Mock data
 	const recentProjects = [
@@ -197,17 +210,15 @@ function RouteComponent() {
 							</Button>
 						</>
 					) : (
-						<>
-							<Button
-								variant="ghost"
-								size="icon"
-								className="h-10 w-10"
-								onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-								title="Expand sidebar"
-							>
-								<PanelLeft className="w-4 h-4" />
-							</Button>
-						</>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-10 w-10"
+							onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+							title="Expand sidebar"
+						>
+							<PanelLeft className="w-4 h-4" />
+						</Button>
 					)}
 				</div>
 
@@ -231,7 +242,8 @@ function RouteComponent() {
 							)}
 							<div className="space-y-1">
 								<Link
-									to="/dashboard/project/1"
+									to="/dashboard/project/$projectId"
+									params={{ projectId: "1" }}
 									className={`flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent text-sm transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
 									title={isSidebarCollapsed ? "Product Roadmap Q1" : undefined}
 								>
@@ -239,7 +251,8 @@ function RouteComponent() {
 									{!isSidebarCollapsed && <span>Product Roadmap Q1</span>}
 								</Link>
 								<Link
-									to="/dashboard/project/2"
+									to="/dashboard/project/$projectId"
+									params={{ projectId: "2" }}
 									className={`flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent text-sm transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
 									title={isSidebarCollapsed ? "Sprint Planning" : undefined}
 								>
@@ -247,7 +260,8 @@ function RouteComponent() {
 									{!isSidebarCollapsed && <span>Sprint Planning</span>}
 								</Link>
 								<Link
-									to="/dashboard/project/3"
+									to="/dashboard/project/$projectId"
+									params={{ projectId: "3" }}
 									className={`flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent text-sm transition-colors ${isSidebarCollapsed ? "justify-center" : ""}`}
 									title={
 										isSidebarCollapsed ? "Design System Updates" : undefined
@@ -409,7 +423,8 @@ function RouteComponent() {
 									{recentProjects.map((project) => (
 										<Link
 											key={project.id}
-											to={`/dashboard/project/${project.id}`}
+											to={`/dashboard/project/$projectId`}
+											params={{ projectId: String(project.id) }}
 										>
 											<Card className="p-5 bg-card border-border hover:border-muted-foreground/20 transition-colors cursor-pointer">
 												<div className="flex items-start justify-between">
@@ -432,23 +447,21 @@ function RouteComponent() {
 																	<span>{project.lastUpdated}</span>
 																</div>
 																<div className="flex items-center -space-x-2">
-																	{project.members
-																		.slice(0, 3)
-																		.map((member, idx) => (
-																			<Avatar
-																				key={idx}
-																				className="w-6 h-6 border-2 border-background"
-																			>
-																				<AvatarImage
-																					src={
-																						member.avatar || "/placeholder.svg"
-																					}
-																				/>
-																				<AvatarFallback>
-																					{member.name[0]}
-																				</AvatarFallback>
-																			</Avatar>
-																		))}
+																	{project.members.slice(0, 3).map((member) => (
+																		<Avatar
+																			key={member.name}
+																			className="w-6 h-6 border-2 border-background"
+																		>
+																			<AvatarImage
+																				src={
+																					member.avatar || "/placeholder.svg"
+																				}
+																			/>
+																			<AvatarFallback>
+																				{member.name[0]}
+																			</AvatarFallback>
+																		</Avatar>
+																	))}
 																	{project.members.length > 3 && (
 																		<div className="w-6 h-6 rounded-full bg-muted border-2 border-background flex items-center justify-center">
 																			<span className="text-xs">

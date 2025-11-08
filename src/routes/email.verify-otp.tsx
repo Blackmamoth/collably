@@ -9,8 +9,17 @@ import {
 import { Label } from "@/components/ui/label";
 import { Layers, ArrowLeft } from "lucide-react";
 
-export const Route = createFileRoute("/signup/verify-otp")({
+interface SearchParams {
+	email: string;
+}
+
+export const Route = createFileRoute("/email/verify-otp")({
 	component: RouteComponent,
+	validateSearch: (search: Record<string, unknown>): SearchParams => {
+		return {
+			email: (search.email as string) || "",
+		};
+	},
 });
 
 function RouteComponent() {
