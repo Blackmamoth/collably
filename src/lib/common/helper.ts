@@ -1,3 +1,4 @@
+import { format, formatDistanceToNow } from "date-fns";
 import { authClient } from "../auth-client";
 import { toast } from "sonner";
 
@@ -36,4 +37,12 @@ export const generateSlug = (input: string): string => {
 		.replace(/\s+/g, "-") // Replace spaces with hyphens
 		.replace(/-+/g, "-") // Replace multiple hyphens with a single one
 		.replace(/^-|-$/g, ""); // Remove hyphens from the start or end of the string
+};
+
+export const formatDateSince = (date: Date) => {
+	return format(date, "MMM yyyy");
+};
+
+export const formatExpiresIn = (date: Date) => {
+	return `Expires ${formatDistanceToNow(date, { addSuffix: true })}`;
 };

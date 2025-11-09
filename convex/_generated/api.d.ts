@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as permissions from "../permissions.js";
 import type * as project from "../project.js";
 import type * as workspace from "../workspace.js";
 
@@ -30,6 +31,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
+  permissions: typeof permissions;
   project: typeof project;
   workspace: typeof workspace;
 }>;

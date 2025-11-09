@@ -14,7 +14,6 @@ import { RiGithubLine, RiGoogleFill } from "react-icons/ri";
 import { useForm } from "@tanstack/react-form";
 import * as z from "zod";
 import { authClient } from "@/lib/auth-client";
-import { APIError } from "better-auth";
 import { toast } from "sonner";
 
 const loginSchema = z.object({
@@ -45,27 +44,35 @@ function LoginComponent() {
 			password: "",
 		},
 		onSubmit: async ({ value }) => {
-			try {
-				await authClient.signIn.email({
+			await authClient.signIn.email(
+				{
 					email: value.email,
 					password: value.password,
 					callbackURL: "/dashboard",
-				});
-			} catch (error) {
-				if (
-					error instanceof APIError &&
-					error.message === "Email not verified"
-				) {
-					navigate({
-						from: "/email/verify-otp",
-						search: { email: value.email },
-					});
-				} else {
-					toast.error(
-						(error as any)?.message || "Login failed! Please try again",
-					);
-				}
-			}
+				},
+				{
+					onError: async (ctx) => {
+						if (ctx.error.message === "Email not verified") {
+							const { error } = await authClient.emailOtp.sendVerificationOtp({
+								email: value.email,
+								type: "email-verification",
+							});
+							if (error !== null) {
+								toast.error(
+									error.message ||
+										"An error occured while sending verification code, please try again!",
+								);
+								return;
+							}
+
+							navigate({
+								to: "/email/verify-otp",
+								search: { email: value.email },
+							});
+						}
+					},
+				},
+			);
 		},
 		validators: {
 			onChange: loginSchema,

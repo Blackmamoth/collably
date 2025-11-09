@@ -5,6 +5,7 @@ import type { DataModel } from "./_generated/dataModel";
 import { betterAuth } from "better-auth";
 import { emailOTP, organization } from "better-auth/plugins";
 import authSchema from "./betterAuth/schema";
+import { ac, member, owner, viewer } from "./permissions";
 
 const siteUrl = process.env.SITE_URL || "";
 
@@ -68,7 +69,17 @@ export const createAuth = (
 					}
 				},
 			}),
-			organization(),
+			organization({
+				ac,
+				roles: {
+					owner,
+					member,
+					viewer,
+				},
+				sendInvitationEmail: async (data) => {
+					console.log(data);
+				},
+			}),
 		],
 	});
 };

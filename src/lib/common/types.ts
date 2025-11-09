@@ -1,4 +1,6 @@
-import type { Session } from "better-auth";
+import type { Session, User } from "better-auth";
+import type { authClient } from "../auth-client";
+import type { Member } from "better-auth/plugins";
 
 export interface Workspace {
 	id: string;
@@ -23,4 +25,13 @@ export interface Project {
 // needed because session type doesn't has/infer the field activeOrganizationId
 export interface SessionWithOrganizationId extends Session {
 	activeOrganizationId?: string;
+}
+
+export interface ActiveOrganization
+	extends NonNullable<
+		ReturnType<typeof authClient.useActiveOrganization>["data"]
+	> {}
+
+export interface WorkspaceMember extends Member {
+	user: Omit<User, "createdAt" | "updatedAt" | "emailVerified">;
 }

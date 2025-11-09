@@ -1,4 +1,9 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	useNavigate,
+	useRouteContext,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +13,8 @@ import {
 } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { Layers, ArrowLeft } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+import { useSearch } from "@tanstack/react-router";
 
 interface SearchParams {
 	email: string;
@@ -23,21 +30,26 @@ export const Route = createFileRoute("/email/verify-otp")({
 });
 
 function RouteComponent() {
-	const email = "";
+	// const {} = useRouteContext({ from: Route.id });
+
+	const { email } = useSearch({ from: Route.id });
 
 	const navigate = useNavigate();
+
+	if (!email) {
+		navigate({ to: "/" });
+	}
 
 	const [otp, setOtp] = useState("");
 	const [isVerifying, setIsVerifying] = useState(false);
 
 	const handleVerifyOtp = async (e: React.FormEvent) => {
 		e.preventDefault();
+		e.stopPropagation();
 		setIsVerifying(true);
 
-		// Simulate API call to verify OTP
-		await new Promise((resolve) => setTimeout(resolve, 1500));
+		await authClient.emailOtp.verifyEmail({ email, otp });
 
-		console.log("[v0] OTP verified:", otp);
 		navigate({ to: "/dashboard" });
 	};
 
@@ -45,10 +57,6 @@ function RouteComponent() {
 		console.log("[v0] Resending OTP to:", email);
 		setOtp("");
 	};
-
-	// if (!email) {
-	// 	return null;
-	// }
 
 	return (
 		<div className="min-h-screen flex items-center justify-center px-6 py-12 bg-background">

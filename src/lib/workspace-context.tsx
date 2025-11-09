@@ -1,9 +1,6 @@
 import { createContext, useContext } from "react";
 import { authClient } from "./auth-client";
-
-type ActiveOrganization = NonNullable<
-	ReturnType<typeof authClient.useActiveOrganization>["data"]
->;
+import type { ActiveOrganization } from "./common/types";
 
 const WorkspaceContext = createContext<ActiveOrganization | null>(null);
 

@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as InviteInvitationIdRouteImport } from './routes/invite.$invitationId'
 import { Route as EmailVerifyOtpRouteImport } from './routes/email.verify-otp'
 import { Route as DashboardTeamRouteImport } from './routes/dashboard/team'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
@@ -53,6 +54,11 @@ const IndexRoute = IndexRouteImport.update({
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/dashboard/',
   path: '/dashboard/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteInvitationIdRoute = InviteInvitationIdRouteImport.update({
+  id: '/invite/$invitationId',
+  path: '/invite/$invitationId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmailVerifyOtpRoute = EmailVerifyOtpRouteImport.update({
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/email/verify-otp': typeof EmailVerifyOtpRoute
+  '/invite/$invitationId': typeof InviteInvitationIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/email/verify-otp': typeof EmailVerifyOtpRoute
+  '/invite/$invitationId': typeof InviteInvitationIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/email/verify-otp': typeof EmailVerifyOtpRoute
+  '/invite/$invitationId': typeof InviteInvitationIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/dashboard/team'
     | '/email/verify-otp'
+    | '/invite/$invitationId'
     | '/dashboard'
     | '/api/auth/$'
     | '/dashboard/project/$projectId/decision-board'
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/dashboard/team'
     | '/email/verify-otp'
+    | '/invite/$invitationId'
     | '/dashboard'
     | '/api/auth/$'
     | '/dashboard/project/$projectId/decision-board'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/dashboard/team'
     | '/email/verify-otp'
+    | '/invite/$invitationId'
     | '/dashboard/'
     | '/api/auth/$'
     | '/dashboard/project/$projectId/decision-board'
@@ -221,6 +233,7 @@ export interface RootRouteChildren {
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardTeamRoute: typeof DashboardTeamRoute
   EmailVerifyOtpRoute: typeof EmailVerifyOtpRoute
+  InviteInvitationIdRoute: typeof InviteInvitationIdRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   DashboardProjectProjectIdDecisionBoardRoute: typeof DashboardProjectProjectIdDecisionBoardRoute
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite/$invitationId': {
+      id: '/invite/$invitationId'
+      path: '/invite/$invitationId'
+      fullPath: '/invite/$invitationId'
+      preLoaderRoute: typeof InviteInvitationIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/email/verify-otp': {
@@ -349,6 +369,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardTeamRoute: DashboardTeamRoute,
   EmailVerifyOtpRoute: EmailVerifyOtpRoute,
+  InviteInvitationIdRoute: InviteInvitationIdRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   DashboardProjectProjectIdDecisionBoardRoute:
