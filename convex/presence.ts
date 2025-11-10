@@ -5,7 +5,6 @@ import { authComponent, createAuth } from "./auth";
 export const updatePresence = mutation({
 	args: {
 		projectId: v.id("project"),
-		memberId: v.string(),
 		cursorX: v.optional(v.number()),
 		cursorY: v.optional(v.number()),
 	},

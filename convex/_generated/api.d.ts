@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as element from "../element.js";
 import type * as http from "../http.js";
 import type * as permissions from "../permissions.js";
 import type * as presence from "../presence.js";
@@ -31,6 +32,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  element: typeof element;
   http: typeof http;
   permissions: typeof permissions;
   presence: typeof presence;

@@ -39,11 +39,11 @@ export const generateSlug = (input: string): string => {
 		.replace(/^-|-$/g, ""); // Remove hyphens from the start or end of the string
 };
 
-export const formatDateSince = (date: Date) => {
+export const formatDateSince = (date: Date | number) => {
 	return format(date, "MMM yyyy");
 };
 
-export const formatExpiresIn = (date: Date) => {
+export const formatExpiresIn = (date: Date | number) => {
 	return `Expires ${formatDistanceToNow(date, { addSuffix: true })}`;
 };
 

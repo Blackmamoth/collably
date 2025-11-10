@@ -23,10 +23,32 @@ export default defineSchema({
 			v.literal("arrow"),
 			v.literal("line"),
 		),
-		content: v.optional(v.string()),
+
+		// for position
 		x: v.number(),
 		y: v.number(),
+
+		// notes + shapes
+		content: v.optional(v.string()),
 		color: v.optional(v.string()),
+
+		width: v.optional(v.number()),
+		height: v.optional(v.number()),
+
+		endX: v.optional(v.number()),
+		endY: v.optional(v.number()),
+
+		strokeColor: v.optional(v.string()),
+		strokeWidth: v.optional(v.number()),
+		fillColor: v.optional(v.string()),
+
+		fontSize: v.optional(v.number()),
+		fontWeight: v.optional(v.string()),
+
+		groupId: v.optional(v.string()),
+
+		votes: v.number(),
+
 		createdBy: v.string(),
 		createdAt: v.number(),
 		updatedAt: v.number(),

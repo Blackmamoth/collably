@@ -1,6 +1,7 @@
 import type { User } from "better-auth";
 import type { authClient } from "../auth-client";
 import type { Member } from "better-auth/plugins";
+import type { Id } from "convex/_generated/dataModel";
 
 export interface Workspace {
 	id: string;
@@ -22,6 +23,16 @@ export interface Project {
 	updatedAt: number;
 }
 
+export interface ActiveMember {
+	_id: Id<"presence">;
+	_creationTime: number;
+	cursorX?: number | undefined;
+	cursorY?: number | undefined;
+	projectId: Id<"project">;
+	memberId: string;
+	lastSeen: number;
+}
+
 // // needed because session type doesn't has/infer the field activeOrganizationId
 // export interface SessionWithOrganizationId extends Session {
 // 	activeOrganizationId?: string;
@@ -34,6 +45,38 @@ export interface ActiveOrganization
 
 export interface WorkspaceMember extends Member {
 	user: Omit<User, "createdAt" | "updatedAt" | "emailVerified">;
+}
+
+export interface BoardElement {
+	_id: Id<"element">;
+	_creationTime: number;
+	content?: string | undefined;
+	color?: string | undefined;
+	width?: number | undefined;
+	height?: number | undefined;
+	endX?: number | undefined;
+	endY?: number | undefined;
+	strokeColor?: string | undefined;
+	strokeWidth?: number | undefined;
+	fillColor?: string | undefined;
+	fontSize?: number | undefined;
+	fontWeight?: string | undefined;
+	groupId?: string | undefined;
+	votes?: number | undefined;
+	createdBy: string;
+	createdAt: number;
+	updatedAt: number;
+	projectId: Id<"project">;
+	elementType:
+		| "sticky"
+		| "note"
+		| "text"
+		| "rectangle"
+		| "circle"
+		| "arrow"
+		| "line";
+	x: number;
+	y: number;
 }
 
 export type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
