@@ -1,6 +1,11 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	redirect,
+	useParams,
+} from "@tanstack/react-router";
 import type React from "react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -43,71 +48,26 @@ import {
 	Hand,
 	MousePointer2,
 	Send,
+	LayoutTemplate,
+	Presentation,
+	X,
 } from "lucide-react";
-
-type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
-
-type ElementType = "note" | "text" | "rectangle" | "circle" | "arrow" | "line";
-
-type BaseElement = {
-	id: number;
-	type: ElementType;
-	position: { x: number; y: number };
-	author: string;
-	timestamp: string;
-};
-
-type StickyNoteElement = BaseElement & {
-	type: "note";
-	content: string;
-	color: string;
-	size: { width: number; height: number };
-	votes: number;
-	comments: Comment[];
-};
-
-type TextElement = BaseElement & {
-	type: "text";
-	content: string;
-	fontSize: number;
-	fontWeight: "normal" | "bold";
-	color: string;
-};
-
-type ShapeElement = BaseElement & {
-	type: "rectangle" | "circle";
-	size: { width: number; height: number };
-	fillColor: string;
-	strokeColor: string;
-	strokeWidth: number;
-};
-
-type ConnectorElement = BaseElement & {
-	type: "arrow" | "line";
-	endPosition: { x: number; y: number };
-	strokeColor: string;
-	strokeWidth: number;
-};
-
-type CanvasElement =
-	| StickyNoteElement
-	| TextElement
-	| ShapeElement
-	| ConnectorElement;
-
-type Comment = {
-	id: number;
-	author: string;
-	content: string;
-	timestamp: string;
-};
-
-type LiveCursor = {
-	id: string;
-	name: string;
-	color: string;
-	position: { x: number; y: number };
-};
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import type {
+	CanvasElement,
+	ConnectorElement,
+	ElementType,
+	LiveCursor,
+	ResizeHandle,
+	ShapeElement,
+	StickyNoteElement,
+	TextElement,
+} from "@/lib/common/types";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "convex/_generated/api";
+import type { Id } from "convex/_generated/dataModel";
+import { generateColorFromId } from "@/lib/common/helper";
 
 const colorOptions = [
 	{
@@ -148,10 +108,140 @@ const colorOptions = [
 	},
 ];
 
+// Throttle utility to limit how often a function runs
+function throttle<T extends (...args: any[]) => any>(
+	func: T,
+	wait: number,
+): (...args: Parameters<T>) => void {
+	let timeout: NodeJS.Timeout | null = null;
+	let previous = 0;
+
+	return function executedFunction(...args: Parameters<T>) {
+		const now = Date.now();
+		const remaining = wait - (now - previous);
+
+		if (remaining <= 0 || remaining > wait) {
+			if (timeout) {
+				clearTimeout(timeout);
+				timeout = null;
+			}
+			previous = now;
+			func(...args);
+		} else if (!timeout) {
+			timeout = setTimeout(() => {
+				previous = Date.now();
+				timeout = null;
+				func(...args);
+			}, remaining);
+		}
+	};
+}
+
+// Helper function to check if a point is near a line segment
+const isPointNearLine = (
+	point: { x: number; y: number },
+	start: { x: number; y: number },
+	end: { x: number; y: number },
+	threshold: number,
+): boolean => {
+	const dx = end.x - start.x;
+	const dy = end.y - start.y;
+	const lengthSquared = dx * dx + dy * dy;
+	if (lengthSquared === 0)
+		return Math.hypot(point.x - start.x, point.y - start.y) < threshold;
+
+	const t =
+		((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
+	const tClamped = Math.max(0, Math.min(1, t));
+
+	const closestX = start.x + tClamped * dx;
+	const closestY = start.y + tClamped * dy;
+
+	return Math.hypot(point.x - closestX, point.y - closestY) < threshold;
+};
+
+const ResizeHandles = ({
+	element,
+	selectedElement,
+	handleResizeMouseDown,
+}: {
+	element: CanvasElement;
+	selectedElement: number | null;
+	handleResizeMouseDown: (
+		e: React.MouseEvent,
+		elementId: number,
+		handle: ResizeHandle,
+	) => void;
+}) => {
+	if (
+		element.type !== "note" &&
+		element.type !== "rectangle" &&
+		element.type !== "circle"
+	)
+		return null;
+	if (selectedElement !== element.id) return null;
+
+	const handles: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+	const size = element.size;
+
+	return (
+		<>
+			{handles.map((handle) => {
+				const style: React.CSSProperties = {
+					position: "absolute",
+					width: "8px",
+					height: "8px",
+					backgroundColor: "#3b82f6",
+					border: "1px solid white",
+					borderRadius: "50%",
+					cursor: `${handle}-resize`,
+					zIndex: 10,
+				};
+
+				if (handle.includes("n")) style.top = "-4px";
+				if (handle.includes("s")) style.bottom = "-4px";
+				if (handle.includes("w")) style.left = "-4px";
+				if (handle.includes("e")) style.right = "-4px";
+				if (handle === "n" || handle === "s") style.left = `calc(50% - 4px)`;
+				if (handle === "w" || handle === "e") style.top = `calc(50% - 4px)`;
+
+				return (
+					<div
+						key={handle}
+						style={style}
+						onMouseDown={(e) => handleResizeMouseDown(e, element.id, handle)}
+					/>
+				);
+			})}
+		</>
+	);
+};
+
 export const Route = createFileRoute(
 	"/dashboard/project/$projectId/decision-board",
 )({
 	component: RouteComponent,
+	beforeLoad: ({ context }) => {
+		const { user } = context;
+
+		if (user === undefined) {
+			throw redirect({ to: "/login" });
+		}
+
+		return { user };
+	},
+	loader: async ({ context, params }) => {
+		const { projectId } = params;
+
+		try {
+			const project = await context.convexClient.query(api.project.getProject, {
+				projectId: projectId as Id<"project">,
+			});
+			return { project };
+		} catch (error) {
+			throw redirect({ to: "/dashboard" });
+		}
+	},
 });
 
 function RouteComponent() {
@@ -171,20 +261,20 @@ function RouteComponent() {
 		},
 	]);
 
-	const [liveCursors, setLiveCursors] = useState<LiveCursor[]>([
-		{
-			id: "user1",
-			name: "Alice",
-			color: "#3b82f6",
-			position: { x: 400, y: 300 },
-		},
-		{
-			id: "user2",
-			name: "Bob",
-			color: "#10b981",
-			position: { x: 600, y: 400 },
-		},
-	]);
+	// const [liveCursors, setLiveCursors] = useState<LiveCursor[]>([
+	// 	{
+	// 		id: "user1",
+	// 		name: "Alice",
+	// 		color: "#3b82f6",
+	// 		position: { x: 400, y: 300 },
+	// 	},
+	// 	{
+	// 		id: "user2",
+	// 		name: "Bob",
+	// 		color: "#10b981",
+	// 		position: { x: 600, y: 400 },
+	// 	},
+	// ]);
 
 	const [selectedTool, setSelectedTool] = useState<
 		ElementType | "select" | "hand"
@@ -194,7 +284,7 @@ function RouteComponent() {
 	const [zoom, setZoom] = useState(1);
 	const [pan, setPan] = useState({ x: 0, y: 0 });
 	const [isPanning, setIsPanning] = useState(false);
-	const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+	const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 }); // Renamed from panStart for clarity
 	const [draggedElement, setDraggedElement] = useState<number | null>(null);
 	const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 	const [isDrawing, setIsDrawing] = useState(false);
@@ -219,24 +309,10 @@ function RouteComponent() {
 		number | null
 	>(null);
 	const [newComment, setNewComment] = useState("");
+	const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+	const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
 	const canvasRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		const interval = setInterval(() => {
-			setLiveCursors((cursors) =>
-				cursors.map((cursor) => ({
-					...cursor,
-					position: {
-						x: cursor.position.x + (Math.random() - 0.5) * 50,
-						y: cursor.position.y + (Math.random() - 0.5) * 50,
-					},
-				})),
-			);
-		}, 2000);
-
-		return () => clearInterval(interval);
-	}, []);
 
 	const getColorClasses = (colorName: string) => {
 		return colorOptions.find((c) => c.name === colorName) || colorOptions[0];
@@ -251,82 +327,134 @@ function RouteComponent() {
 		};
 	};
 
-	const handleCanvasMouseDown = (e: React.MouseEvent) => {
-		if (
-			e.button === 1 ||
-			selectedTool === "hand" ||
-			(e.button === 0 &&
-				selectedTool === "select" &&
-				e.target === canvasRef.current)
-		) {
+	const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+		// Handle panning if middle mouse button or hand tool is selected
+		if (e.button === 1 || selectedTool === "hand") {
 			setIsPanning(true);
-			setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+			setLastPanPoint({ x: e.clientX, y: e.clientY }); // Use current mouse position for pan start
+			e.preventDefault(); // Prevent default browser behavior for middle click
 			return;
 		}
 
-		const canvasPos = screenToCanvas(e.clientX, e.clientY);
+		const target = e.target as HTMLElement;
+		const clickedOnCanvas =
+			target === canvasRef.current || target.closest(".canvas-background");
 
-		// Start drawing connector or shape
-		if (
-			selectedTool === "arrow" ||
-			selectedTool === "line" ||
-			selectedTool === "rectangle" ||
-			selectedTool === "circle"
-		) {
-			setIsDrawing(true);
-			setDrawStart(canvasPos);
-			setPreviewElement({
-				start: canvasPos,
-				end: canvasPos,
-				type: selectedTool,
-			});
-		}
+		// If clicking on the canvas itself and not an element
+		if (clickedOnCanvas) {
+			// Start drawing a new element
+			if (selectedTool === "arrow" || selectedTool === "line") {
+				setIsDrawing(true);
+				const canvasPos = screenToCanvas(e.clientX, e.clientY);
+				setDrawStart(canvasPos);
+				setPreviewElement({
+					start: canvasPos,
+					end: canvasPos,
+					type: selectedTool,
+				});
+			} else if (selectedTool === "rectangle" || selectedTool === "circle") {
+				setIsDrawing(true);
+				const canvasPos = screenToCanvas(e.clientX, e.clientY);
+				setDrawStart(canvasPos);
+				setPreviewElement({
+					start: canvasPos,
+					end: canvasPos,
+					type: selectedTool,
+				});
+			} else if (selectedTool === "text") {
+				const canvasPos = screenToCanvas(e.clientX, e.clientY);
+				const newElement: TextElement = {
+					id: Date.now(),
+					type: "text",
+					content: "Edit me",
+					fontSize: 16,
+					fontWeight: "normal",
+					color: "#ffffff", // Default text color
+					position: canvasPos,
+					author: "You",
+					timestamp: new Date().toISOString(),
+				};
+				setElements([...elements, newElement]);
+				setSelectedElement(newElement.id);
+				setEditingElement(newElement.id);
+				setSelectedTool("select"); // Switch back to select tool after adding
+			} else if (selectedTool === "note") {
+				const canvasPos = screenToCanvas(e.clientX, e.clientY);
+				const newElement: StickyNoteElement = {
+					id: Date.now(),
+					type: "note",
+					content: "Edit me",
+					color: "yellow", // Default color
+					size: { width: 240, height: 160 },
+					position: canvasPos,
+					votes: 0,
+					comments: [],
+					author: "You",
+					timestamp: new Date().toISOString(),
+				};
+				setElements([...elements, newElement]);
+				setSelectedElement(newElement.id);
+				setEditingElement(newElement.id);
+				setSelectedTool("select"); // Switch back to select tool after adding
+			} else {
+				// If selecting tool is 'select' or 'hand' and not panning, deselect elements
+				setSelectedElement(null);
+			}
+		} else {
+			// If clicking on an existing element
+			const clickedElementId = Number.parseInt(
+				(e.target as HTMLElement).closest("[data-element-id]")?.dataset
+					.elementId || "-1",
+			);
 
-		// Add text or note
-		if (selectedTool === "text") {
-			const newElement: TextElement = {
-				id: Date.now(),
-				type: "text",
-				content: "Double-click to edit",
-				fontSize: 16,
-				fontWeight: "normal",
-				color: "#ffffff",
-				position: canvasPos,
-				author: "You",
-				timestamp: "Just now",
-			};
-			setElements([...elements, newElement]);
-			setSelectedTool("select");
-			setSelectedElement(newElement.id);
-			setEditingElement(newElement.id);
-		}
+			if (clickedElementId !== -1) {
+				const element = elements.find((el) => el.id === clickedElementId);
+				if (element) {
+					if (selectedTool === "select") {
+						setSelectedElement(element.id);
+						setDraggedElement(element.id);
+						const canvasPos = screenToCanvas(e.clientX, e.clientY);
+						setDragOffset({
+							x: canvasPos.x - element.position.x,
+							y: canvasPos.y - element.position.y,
+						});
 
-		if (selectedTool === "note") {
-			const newElement: StickyNoteElement = {
-				id: Date.now(),
-				type: "note",
-				content: "Double-click to edit",
-				color: "yellow",
-				size: { width: 240, height: 160 },
-				position: canvasPos,
-				votes: 0,
-				comments: [],
-				author: "You",
-				timestamp: "Just now",
-			};
-			setElements([...elements, newElement]);
-			setSelectedTool("select");
-			setSelectedElement(newElement.id);
-			setEditingElement(newElement.id);
+						// Bring selected element to front
+						setElements((prev) => {
+							const filtered = prev.filter((el) => el.id !== clickedElementId);
+							return [...filtered, element];
+						});
+					} else if (
+						(selectedTool === "arrow" || selectedTool === "line") &&
+						element.type !== "arrow" &&
+						element.type !== "line"
+					) {
+						// If drawing a connector and clicked an element, set it as the start point
+						setIsDrawing(true);
+						setDrawStart(element.position); // Or a point on the element's boundary
+						setPreviewElement({
+							start: { x: element.position.x, y: element.position.y },
+							end: { x: element.position.x, y: element.position.y },
+							type: selectedTool,
+						});
+					}
+				}
+			} else {
+				// Clicked on canvas and not on an element, deselect
+				setSelectedElement(null);
+			}
 		}
 	};
 
-	const handleCanvasMouseMove = (e: React.MouseEvent) => {
+	const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+		const canvasPos = screenToCanvas(e.clientX, e.clientY);
+		throttledUpdatePresence(canvasPos.x, canvasPos.y);
+
 		if (isPanning) {
-			setPan({
-				x: e.clientX - panStart.x,
-				y: e.clientY - panStart.y,
-			});
+			const dx = e.clientX - lastPanPoint.x;
+			const dy = e.clientY - lastPanPoint.y;
+			setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+			setLastPanPoint({ x: e.clientX, y: e.clientY });
 			return;
 		}
 
@@ -381,30 +509,64 @@ function RouteComponent() {
 
 		if (draggedElement !== null) {
 			const canvasPos = screenToCanvas(e.clientX, e.clientY);
-			setElements(
-				elements.map((el) => {
-					if (el.id !== draggedElement) return el;
+			const draggedEl = elements.find((el) => el.id === draggedElement);
 
-					const newX = canvasPos.x - dragOffset.x;
-					const newY = canvasPos.y - dragOffset.y;
+			if (draggedEl?.groupId) {
+				const groupElements = elements.filter(
+					(el) => el.groupId === draggedEl.groupId,
+				);
+				const dx = canvasPos.x - dragOffset.x - draggedEl.position.x;
+				const dy = canvasPos.y - dragOffset.y - draggedEl.position.y;
 
-					// For arrows and lines, also update the endPosition
-					if (el.type === "arrow" || el.type === "line") {
-						const dx = newX - el.position.x;
-						const dy = newY - el.position.y;
-						return {
-							...el,
-							position: { x: newX, y: newY },
-							endPosition: {
-								x: el.endPosition.x + dx,
-								y: el.endPosition.y + dy,
-							},
-						};
-					}
+				setElements(
+					elements.map((el) => {
+						if (el.groupId !== draggedEl.groupId) return el;
 
-					return { ...el, position: { x: newX, y: newY } };
-				}),
-			);
+						const newX = el.position.x + dx;
+						const newY = el.position.y + dy;
+
+						// For arrows and lines, also update the endPosition
+						if (el.type === "arrow" || el.type === "line") {
+							return {
+								...el,
+								position: { x: newX, y: newY },
+								endPosition: {
+									x: el.endPosition.x + dx,
+									y: el.endPosition.y + dy,
+								},
+							};
+						}
+
+						return { ...el, position: { x: newX, y: newY } };
+					}),
+				);
+			} else {
+				// Original single element dragging
+				setElements(
+					elements.map((el) => {
+						if (el.id !== draggedElement) return el;
+
+						const newX = canvasPos.x - dragOffset.x;
+						const newY = canvasPos.y - dragOffset.y;
+
+						// For arrows and lines, also update the endPosition
+						if (el.type === "arrow" || el.type === "line") {
+							const dx = newX - el.position.x;
+							const dy = newY - el.position.y;
+							return {
+								...el,
+								position: { x: newX, y: newY },
+								endPosition: {
+									x: el.endPosition.x + dx,
+									y: el.endPosition.y + dy,
+								},
+							};
+						}
+
+						return { ...el, position: { x: newX, y: newY } };
+					}),
+				);
+			}
 			return;
 		}
 
@@ -414,7 +576,7 @@ function RouteComponent() {
 		}
 	};
 
-	const handleCanvasMouseUp = (e: React.MouseEvent) => {
+	const handleCanvasMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
 		if (isPanning) {
 			setIsPanning(false);
 			return;
@@ -429,42 +591,52 @@ function RouteComponent() {
 			const canvasPos = screenToCanvas(e.clientX, e.clientY);
 
 			if (selectedTool === "arrow" || selectedTool === "line") {
-				const newElement: ConnectorElement = {
-					id: Date.now(),
-					type: selectedTool,
-					position: drawStart,
-					endPosition: canvasPos,
-					strokeColor: "#ffffff",
-					strokeWidth: 2,
-					author: "You",
-					timestamp: "Just now",
-				};
-				setElements([...elements, newElement]);
+				// Ensure minimum length for lines/arrows
+				if (
+					Math.abs(canvasPos.x - drawStart.x) > 10 ||
+					Math.abs(canvasPos.y - drawStart.y) > 10
+				) {
+					const newElement: ConnectorElement = {
+						id: Date.now(),
+						type: selectedTool,
+						position: drawStart,
+						endPosition: canvasPos,
+						strokeColor: "#ffffff",
+						strokeWidth: 2,
+						author: "You",
+						timestamp: new Date().toISOString(),
+					};
+					setElements([...elements, newElement]);
+				}
 			}
 
 			if (selectedTool === "rectangle" || selectedTool === "circle") {
 				const width = Math.abs(canvasPos.x - drawStart.x);
 				const height = Math.abs(canvasPos.y - drawStart.y);
-				const newElement: ShapeElement = {
-					id: Date.now(),
-					type: selectedTool,
-					position: {
-						x: Math.min(drawStart.x, canvasPos.x),
-						y: Math.min(drawStart.y, canvasPos.y),
-					},
-					size: { width: Math.max(width, 50), height: Math.max(height, 50) },
-					fillColor: "transparent",
-					strokeColor: "#ffffff",
-					strokeWidth: 2,
-					author: "You",
-					timestamp: "Just now",
-				};
-				setElements([...elements, newElement]);
+
+				// Ensure minimum size for shapes
+				if (width > 10 || height > 10) {
+					const newElement: ShapeElement = {
+						id: Date.now(),
+						type: selectedTool,
+						position: {
+							x: Math.min(drawStart.x, canvasPos.x),
+							y: Math.min(drawStart.y, canvasPos.y),
+						},
+						size: { width: Math.max(width, 50), height: Math.max(height, 50) },
+						fillColor: "transparent",
+						strokeColor: "#ffffff",
+						strokeWidth: 2,
+						author: "You",
+						timestamp: new Date().toISOString(),
+					};
+					setElements([...elements, newElement]);
+				}
 			}
 
 			setIsDrawing(false);
 			setPreviewElement(null);
-			setSelectedTool("select");
+			setSelectedTool("select"); // Switch back to select tool after drawing
 		}
 
 		setDraggedElement(null);
@@ -488,8 +660,12 @@ function RouteComponent() {
 
 	const handleElementDoubleClick = (e: React.MouseEvent, elementId: number) => {
 		e.stopPropagation();
+		const element = elements.find((el) => el.id === elementId);
+		if (element && (element.type === "arrow" || element.type === "line")) {
+			return; // Don't allow editing connectors
+		}
 		setEditingElement(elementId);
-		setSelectedElement(elementId);
+		setSelectedElement(elementId); // Ensure it's selected when editing
 	};
 
 	const handleResizeMouseDown = (
@@ -520,7 +696,11 @@ function RouteComponent() {
 	const handleContentUpdate = (elementId: number, newContent: string) => {
 		setElements(
 			elements.map((el) => {
-				if (el.id === elementId && (el.type === "note" || el.type === "text")) {
+				if (
+					el.id === elementId &&
+					(el.type === "note" || el.type === "text" || el.type === "sticky")
+				) {
+					// Include 'sticky' type
 					return { ...el, content: newContent };
 				}
 				return el;
@@ -542,7 +722,7 @@ function RouteComponent() {
 	const handleVote = (noteId: number) => {
 		setElements(
 			elements.map((el) =>
-				el.id === noteId && el.type === "note"
+				el.id === noteId && (el.type === "note" || el.type === "sticky")
 					? { ...el, votes: el.votes + 1 }
 					: el,
 			),
@@ -554,7 +734,8 @@ function RouteComponent() {
 
 		setElements(
 			elements.map((el) => {
-				if (el.id === noteId && el.type === "note") {
+				if (el.id === noteId && (el.type === "note" || el.type === "sticky")) {
+					// Include 'sticky' type
 					return {
 						...el,
 						comments: [
@@ -563,7 +744,7 @@ function RouteComponent() {
 								id: Date.now(),
 								author: "You",
 								content: newComment,
-								timestamp: "Just now",
+								timestamp: new Date().toISOString(),
 							},
 						],
 					};
@@ -579,10 +760,23 @@ function RouteComponent() {
 	) => {
 		let newElements: CanvasElement[] = [];
 
+		if (!canvasRef.current) return;
+		const rect = canvasRef.current.getBoundingClientRect();
+		const viewportCenterX = rect.width / 2;
+		const viewportCenterY = rect.height / 2;
+		const canvasCenter = screenToCanvas(
+			viewportCenterX + rect.left,
+			viewportCenterY + rect.top,
+		);
+
+		// Use viewport center as the base position for templates
+		const baseX = canvasCenter.x - 300; // Offset to center the template
+		const baseY = canvasCenter.y - 200;
+
+		const groupId = `template-${Date.now()}`;
+
 		if (templateType === "swot") {
 			// SWOT Analysis: 4 quadrants
-			const baseX = 300;
-			const baseY = 200;
 			const spacing = 320;
 
 			newElements = [
@@ -596,7 +790,8 @@ function RouteComponent() {
 					color: "#ffffff",
 					position: { x: baseX + spacing, y: baseY - 80 },
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Strengths
 				{
@@ -609,7 +804,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Weaknesses
 				{
@@ -622,7 +818,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Opportunities
 				{
@@ -635,7 +832,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Threats
 				{
@@ -648,13 +846,12 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 			];
 		} else if (templateType === "retrospective") {
 			// Retrospective: 3 columns
-			const baseX = 200;
-			const baseY = 200;
 			const spacing = 340;
 
 			newElements = [
@@ -668,7 +865,8 @@ function RouteComponent() {
 					color: "#ffffff",
 					position: { x: baseX + spacing, y: baseY - 80 },
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// What went well
 				{
@@ -681,7 +879,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// What didn't go well
 				{
@@ -694,7 +893,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Action items
 				{
@@ -707,13 +907,12 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 			];
 		} else if (templateType === "brainstorming") {
 			// Brainstorming: Open canvas with starter notes
-			const baseX = 300;
-			const baseY = 200;
 
 			newElements = [
 				// Title
@@ -726,7 +925,8 @@ function RouteComponent() {
 					color: "#ffffff",
 					position: { x: baseX + 200, y: baseY - 80 },
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Central idea
 				{
@@ -739,7 +939,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Idea 1
 				{
@@ -752,7 +953,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Idea 2
 				{
@@ -765,7 +967,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Idea 3
 				{
@@ -778,7 +981,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 				// Idea 4
 				{
@@ -791,7 +995,8 @@ function RouteComponent() {
 					votes: 0,
 					comments: [],
 					author: "Template",
-					timestamp: "Just now",
+					timestamp: new Date().toISOString(),
+					groupId,
 				},
 			];
 		}
@@ -802,80 +1007,130 @@ function RouteComponent() {
 
 	const selectedElementData = elements.find((el) => el.id === selectedElement);
 	const selectedNoteData = elements.find(
-		(el) => el.id === selectedNoteForComments && el.type === "note",
+		(el) =>
+			el.id === selectedNoteForComments &&
+			(el.type === "note" || el.type === "sticky"),
 	) as StickyNoteElement | undefined;
 
 	const teamMembers = [
 		{
 			name: "Alice",
 			avatar: "/placeholder.svg?height=32&width=32",
-			status: "online",
+			status: "viewing",
 		},
 		{
 			name: "Bob",
 			avatar: "/placeholder.svg?height=32&width=32",
-			status: "online",
+			status: "viewing",
 		},
 		{
 			name: "Charlie",
 			avatar: "/placeholder.svg?height=32&width=32",
-			status: "offline",
+			status: "away",
+		},
+		{
+			name: "Diana",
+			avatar: "/placeholder.svg?height=32&width=32",
+			status: "editing",
+		},
+		{
+			name: "Ethan",
+			avatar: "/placeholder.svg?height=32&width=32",
+			status: "away",
 		},
 	];
 
-	const ResizeHandles = ({ element }: { element: CanvasElement }) => {
-		if (
-			element.type !== "note" &&
-			element.type !== "rectangle" &&
-			element.type !== "circle"
-		)
-			return null;
-		if (selectedElement !== element.id) return null;
+	const params = useParams({ from: Route.id });
 
-		const handles: ResizeHandle[] = [
-			"nw",
-			"n",
-			"ne",
-			"e",
-			"se",
-			"s",
-			"sw",
-			"w",
-		];
-		const size = element.size;
+	const { project } = Route.useLoaderData();
 
-		return (
-			<>
-				{handles.map((handle) => {
-					const style: React.CSSProperties = {
-						position: "absolute",
-						width: "8px",
-						height: "8px",
-						backgroundColor: "#3b82f6",
-						border: "1px solid white",
-						borderRadius: "50%",
-						cursor: `${handle}-resize`,
-						zIndex: 10,
-					};
+	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers);
+	const activeMembers =
+		useQuery(api.presence.getActiveMembers, {
+			projectId: params.projectId as Id<"project">,
+		}) || [];
 
-					if (handle.includes("n")) style.top = "-4px";
-					if (handle.includes("s")) style.bottom = "-4px";
-					if (handle.includes("w")) style.left = "-4px";
-					if (handle.includes("e")) style.right = "-4px";
-					if (handle === "n" || handle === "s") style.left = `calc(50% - 4px)`;
-					if (handle === "w" || handle === "e") style.top = `calc(50% - 4px)`;
+	const updatePresence = useMutation(api.presence.updatePresence);
 
-					return (
-						<div
-							key={handle}
-							style={style}
-							onMouseDown={(e) => handleResizeMouseDown(e, element.id, handle)}
-						/>
-					);
-				})}
-			</>
-		);
-	};
+	const { user } = Route.useRouteContext();
+	const currentMember = workspaceMembers?.members?.find(
+		(m) => m.user.id === user.id,
+	);
+
+	// Throttled function to update presence (max once per 100ms)
+	const throttledUpdatePresence = useCallback(
+		throttle((cursorX: number, cursorY: number) => {
+			if (!currentMember) return;
+
+			updatePresence({
+				projectId: params.projectId as Id<"project">,
+				memberId: currentMember.id,
+				cursorX,
+				cursorY,
+			});
+		}, 100),
+		[currentMember, params.projectId, updatePresence],
+	);
+
+	// Convert activePresence to LiveCursor format
+	const liveCursors = useMemo<LiveCursor[]>(() => {
+		if (!workspaceMembers?.members) return [];
+
+		return activeMembers
+			.filter((p) => p.memberId !== currentMember?.id) // Don't show your own cursor
+			.map((presence) => {
+				const member = workspaceMembers.members.find(
+					(m) => m.id === presence.memberId,
+				);
+				if (!member) return null;
+
+				return {
+					id: presence.memberId,
+					name: member.user.name,
+					color: generateColorFromId(presence.memberId),
+					position: {
+						x: presence.cursorX ?? 0,
+						y: presence.cursorY ?? 0,
+					},
+				};
+			})
+			.filter((cursor): cursor is LiveCursor => cursor !== null);
+	}, [activeMembers, workspaceMembers, currentMember?.id]);
+
+	const activeMembersList =
+		workspaceMembers?.members?.filter((member) =>
+			activeMembers.find((activeMember) => activeMember.memberId === member.id),
+		) || [];
+
+	const visibleMembers = activeMembersList.slice(0, 3);
+	const remainingCount =
+		(workspaceMembers?.members?.length || 0) - visibleMembers.length;
+
+	// Heartbeat to keep presence alive even without mouse movement
+	useEffect(() => {
+		if (!currentMember) return;
+
+		const heartbeat = setInterval(() => {
+			updatePresence({
+				projectId: params.projectId as Id<"project">,
+				memberId: currentMember.id,
+			});
+		}, 15000);
+
+		return () => clearInterval(heartbeat);
+	}, [currentMember, params.projectId, updatePresence]);
+
+	// Clean up presence when leaving the page
+	const removePresence = useMutation(api.presence.removePresence);
+	useEffect(() => {
+		return () => {
+			if (currentMember) {
+				removePresence({
+					projectId: params.projectId as Id<"project">,
+				});
+			}
+		};
+	}, [currentMember, params.projectId, removePresence]);
 
 	return (
 		<div className="h-screen flex flex-col bg-background">
@@ -883,32 +1138,44 @@ function RouteComponent() {
 			{!isFocusMode && (
 				<header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
 					<div className="flex items-center gap-4">
-						<Link href={`/dashboard/project/${params.id}`}>
+						<Link
+							to={`/dashboard/project/$projectId`}
+							params={{ projectId: params.projectId }}
+						>
 							<Button variant="ghost" size="icon">
 								<ArrowLeft className="w-5 h-5" />
 							</Button>
 						</Link>
 						<div>
-							<h1 className="font-semibold">Product Roadmap Q1</h1>
+							<h1 className="font-semibold">{project.name}</h1>
 							<p className="text-xs text-muted-foreground">Decision Board</p>
 						</div>
 					</div>
 
 					<div className="flex items-center gap-2">
-						{/* Team Avatars */}
-						<div className="flex items-center -space-x-2 mr-2">
-							{teamMembers.map((member, idx) => (
-								<div key={idx} className="relative">
+						<button
+							type="button"
+							className="flex items-center -space-x-2 mr-2 hover:opacity-80 transition-opacity"
+							onClick={() => setMembersDialogOpen(true)}
+							title="View all board members"
+						>
+							{visibleMembers.map((member) => (
+								<div key={member.id} className="relative">
 									<Avatar className="w-8 h-8 border-2 border-background">
-										<AvatarImage src={member.avatar || "/placeholder.svg"} />
-										<AvatarFallback>{member.name[0]}</AvatarFallback>
+										<AvatarImage
+											src={member.user.image || "/placeholder.svg"}
+										/>
+										<AvatarFallback>{member.user.name[0]}</AvatarFallback>
 									</Avatar>
-									{member.status === "online" && (
-										<span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" />
-									)}
+									<span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" />
 								</div>
 							))}
-						</div>
+							{remainingCount > 0 && (
+								<div className="w-8 h-8 rounded-full bg-muted border-2 border-background flex items-center justify-center">
+									<span className="text-xs font-medium">+{remainingCount}</span>
+								</div>
+							)}
+						</button>
 
 						<Button
 							variant="outline"
@@ -931,7 +1198,11 @@ function RouteComponent() {
 							AI Insights
 						</Button>
 
-						<Button variant="outline" size="sm">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShareDialogOpen(true)}
+						>
 							<Share2 className="w-4 h-4 mr-2" />
 							Share
 						</Button>
@@ -948,9 +1219,11 @@ function RouteComponent() {
 									Export as PDF
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
-								<DropdownMenuItem>
-									<Users className="w-4 h-4 mr-2" />
-									Manage members
+								<DropdownMenuItem asChild>
+									<Link to="/dashboard/team">
+										<Users className="w-4 h-4 mr-2" />
+										Manage members
+									</Link>
 								</DropdownMenuItem>
 								<DropdownMenuItem className="text-destructive">
 									Delete board
@@ -995,7 +1268,7 @@ function RouteComponent() {
 
 					{/* Canvas content with zoom and pan */}
 					<div
-						className="absolute inset-0"
+						className="absolute inset-0 canvas-background"
 						style={{
 							transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
 							transformOrigin: "0 0",
@@ -1003,15 +1276,21 @@ function RouteComponent() {
 					>
 						{/* Render all elements */}
 						{elements.map((element) => {
-							if (element.type === "note") {
+							const elementKey = element.id;
+							const commonProps = {
+								"data-element-id": element.id,
+							};
+
+							if (element.type === "note" || element.type === "sticky") {
 								const colors = getColorClasses(element.color);
 								const isSelected = selectedElement === element.id;
 								const isEditing = editingElement === element.id;
 
 								return (
 									<div
-										key={element.id}
-										className={`absolute p-4 rounded-lg border-2 ${colors.bg} ${colors.border} ${colors.text} shadow-sm hover:shadow-lg transition-all group ${
+										key={elementKey}
+										{...commonProps}
+										className={`absolute p-4 rounded shadow-md hover:shadow-xl transition-all group ${
 											isSelected ? "ring-2 ring-primary ring-offset-2" : ""
 										}`}
 										style={{
@@ -1020,6 +1299,39 @@ function RouteComponent() {
 											width: element.size.width,
 											height: element.size.height,
 											cursor: selectedTool === "select" ? "move" : "default",
+											backgroundColor:
+												element.color === "yellow"
+													? "#fef3c7"
+													: element.color === "pink"
+														? "#fce7f3"
+														: element.color === "blue"
+															? "#dbeafe"
+															: element.color === "green"
+																? "#d1fae5"
+																: element.color === "purple"
+																	? "#e9d5ff"
+																	: element.color === "orange"
+																		? "#fed7aa"
+																		: "#fef3c7",
+											color:
+												element.color === "yellow"
+													? "#78350f"
+													: element.color === "pink"
+														? "#831843"
+														: element.color === "blue"
+															? "#1e3a8a"
+															: element.color === "green"
+																? "#064e3b"
+																: element.color === "purple"
+																	? "#581c87"
+																	: element.color === "orange"
+																		? "#7c2d12"
+																		: "#78350f",
+											boxShadow:
+												"0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)",
+											transform: "rotate(-0.5deg)",
+											fontFamily:
+												"'Comic Sans MS', 'Marker Felt', cursive, sans-serif",
 										}}
 										onMouseDown={(e) => handleElementMouseDown(e, element.id)}
 										onDoubleClick={(e) =>
@@ -1052,22 +1364,23 @@ function RouteComponent() {
 
 										{isEditing ? (
 											<textarea
-												className="w-full text-sm leading-relaxed mb-3 bg-transparent border-none outline-none resize-none"
+												className="w-full text-sm leading-relaxed mb-3 bg-transparent border-none outline-none resize-none overflow-auto"
 												style={{
 													height: element.size.height - 100,
 													color: "inherit",
+													fontFamily: "inherit",
 												}}
 												value={element.content}
 												onChange={(e) =>
 													handleContentUpdate(element.id, e.target.value)
 												}
 												onBlur={() => setEditingElement(null)}
-												autoFocus
+												// autoFocus
 												onClick={(e) => e.stopPropagation()}
 											/>
 										) : (
 											<p
-												className="text-sm leading-relaxed mb-3 overflow-auto"
+												className="text-sm leading-relaxed mb-3 overflow-auto whitespace-pre-wrap"
 												style={{ maxHeight: element.size.height - 100 }}
 											>
 												{element.content}
@@ -1077,6 +1390,7 @@ function RouteComponent() {
 										<div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs">
 											<div className="flex items-center gap-3">
 												<button
+													type="button"
 													onClick={(e) => {
 														e.stopPropagation();
 														handleVote(element.id);
@@ -1087,6 +1401,7 @@ function RouteComponent() {
 													<span>{element.votes}</span>
 												</button>
 												<button
+													type="button"
 													onClick={(e) => {
 														e.stopPropagation();
 														setSelectedNoteForComments(element.id);
@@ -1101,7 +1416,11 @@ function RouteComponent() {
 											<span className="opacity-60">{element.timestamp}</span>
 										</div>
 
-										<ResizeHandles element={element} />
+										<ResizeHandles
+											element={element}
+											handleResizeMouseDown={handleResizeMouseDown}
+											selectedElement={selectedElement}
+										/>
 									</div>
 								);
 							}
@@ -1112,7 +1431,8 @@ function RouteComponent() {
 
 								return (
 									<div
-										key={element.id}
+										key={elementKey}
+										{...commonProps}
 										className={`absolute px-2 py-1 ${isSelected ? "ring-2 ring-primary ring-offset-2 rounded" : ""}`}
 										style={{
 											left: element.position.x,
@@ -1121,7 +1441,8 @@ function RouteComponent() {
 											fontWeight: element.fontWeight,
 											color: element.color,
 											cursor: selectedTool === "select" ? "move" : "default",
-											minWidth: "100px",
+											minWidth: element.fontSize > 20 ? "300px" : "100px",
+											maxWidth: "600px",
 										}}
 										onMouseDown={(e) => handleElementMouseDown(e, element.id)}
 										onDoubleClick={(e) =>
@@ -1129,40 +1450,44 @@ function RouteComponent() {
 										}
 									>
 										{isEditing ? (
-											<div
-												contentEditable
-												suppressContentEditableWarning
-												className="bg-transparent border-none outline-none min-w-[100px] whitespace-pre-wrap"
+											<textarea
+												className="bg-transparent border border-border rounded px-2 py-1 outline-none min-w-[100px] resize-none overflow-hidden"
 												style={{
 													fontSize: element.fontSize,
 													fontWeight: element.fontWeight,
 													color: element.color,
+													whiteSpace: "pre-wrap",
 												}}
-												onInput={(e) =>
-													handleContentUpdate(
-														element.id,
-														e.currentTarget.textContent || "",
-													)
-												}
+												value={element.content}
+												onChange={(e) => {
+													handleContentUpdate(element.id, e.target.value);
+													// Auto-resize textarea to fit content
+													e.target.style.height = "auto";
+													e.target.style.height = e.target.scrollHeight + "px";
+												}}
 												onBlur={() => setEditingElement(null)}
 												onClick={(e) => e.stopPropagation()}
+												rows={1}
 												ref={(el) => {
 													if (el && isEditing) {
 														el.focus();
+														el.style.height = "auto";
+														el.style.height = el.scrollHeight + "px";
 														// Move cursor to end
-														const range = document.createRange();
-														const sel = window.getSelection();
-														range.selectNodeContents(el);
-														range.collapse(false);
-														sel?.removeAllRanges();
-														sel?.addRange(range);
+														el.setSelectionRange(
+															el.value.length,
+															el.value.length,
+														);
 													}
 												}}
-											>
-												{element.content}
-											</div>
+											/>
 										) : (
-											<div className="whitespace-pre-wrap">
+											<div
+												style={{
+													whiteSpace: "pre-wrap",
+													wordBreak: "break-word",
+												}}
+											>
 												{element.content}
 											</div>
 										)}
@@ -1174,7 +1499,8 @@ function RouteComponent() {
 								const isSelected = selectedElement === element.id;
 								return (
 									<div
-										key={element.id}
+										key={elementKey}
+										{...commonProps}
 										className={`absolute ${isSelected ? "ring-2 ring-primary ring-offset-2" : ""}`}
 										style={{
 											left: element.position.x,
@@ -1188,7 +1514,11 @@ function RouteComponent() {
 										}}
 										onMouseDown={(e) => handleElementMouseDown(e, element.id)}
 									>
-										<ResizeHandles element={element} />
+										<ResizeHandles
+											element={element}
+											handleResizeMouseDown={handleResizeMouseDown}
+											selectedElement={selectedElement}
+										/>
 									</div>
 								);
 							}
@@ -1197,7 +1527,8 @@ function RouteComponent() {
 								const isSelected = selectedElement === element.id;
 								return (
 									<div
-										key={element.id}
+										key={elementKey}
+										{...commonProps}
 										className={`absolute ${isSelected ? "ring-2 ring-primary ring-offset-2" : ""}`}
 										style={{
 											left: element.position.x,
@@ -1211,7 +1542,11 @@ function RouteComponent() {
 										}}
 										onMouseDown={(e) => handleElementMouseDown(e, element.id)}
 									>
-										<ResizeHandles element={element} />
+										<ResizeHandles
+											element={element}
+											handleResizeMouseDown={handleResizeMouseDown}
+											selectedElement={selectedElement}
+										/>
 									</div>
 								);
 							}
@@ -1225,7 +1560,8 @@ function RouteComponent() {
 
 								return (
 									<div
-										key={element.id}
+										key={elementKey}
+										{...commonProps}
 										className={`absolute ${isSelected ? "ring-2 ring-primary ring-offset-2" : ""}`}
 										style={{
 											left: element.position.x,
@@ -1532,8 +1868,9 @@ function RouteComponent() {
 									<div className="space-y-2">
 										{elements
 											.filter(
-												(el): el is StickyNoteElement => el.type === "note",
-											)
+												(el): el is StickyNoteElement =>
+													el.type === "note" || el.type === "sticky",
+											) // Filter for note or sticky
 											.sort((a, b) => b.votes - a.votes)
 											.slice(0, 3)
 											.map((note) => (
@@ -1571,6 +1908,104 @@ function RouteComponent() {
 					</div>
 				)}
 			</div>
+
+			<Dialog open={membersDialogOpen} onOpenChange={setMembersDialogOpen}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle>Board Members</DialogTitle>
+						<DialogDescription>
+							Members currently on this decision board
+						</DialogDescription>
+					</DialogHeader>
+					<ScrollArea className="max-h-[400px] pr-4">
+						<div className="space-y-2">
+							{workspaceMembers?.members?.map((member, idx) => (
+								<div
+									key={member.id}
+									className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+								>
+									<div className="flex items-center gap-3">
+										<Avatar className="w-10 h-10">
+											<AvatarImage
+												src={member.user.image || "/placeholder.svg"}
+											/>
+											<AvatarFallback>{member.user.name[0]}</AvatarFallback>
+										</Avatar>
+										<div>
+											<p className="font-medium text-sm">{member.user.name}</p>
+											<p className="font-medium text-sm">{member.role}</p>
+										</div>
+									</div>
+									<div>
+										{activeMembers.find(
+											(activeMember) => activeMember.memberId === member.id,
+										) ? (
+											<Badge
+												variant="secondary"
+												className="bg-green-500/10 text-green-600 border-green-500/20"
+											>
+												Active
+											</Badge>
+										) : (
+											<Badge
+												variant="outline"
+												className="text-muted-foreground"
+											>
+												Away
+											</Badge>
+										)}
+									</div>
+								</div>
+							))}
+						</div>
+					</ScrollArea>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+				<DialogContent className="sm:max-w-[500px]">
+					<DialogHeader>
+						<DialogTitle>Share Decision Board</DialogTitle>
+						<DialogDescription>
+							Share this board with your team members
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="space-y-2">
+							<Label htmlFor="share-link">Share Link</Label>
+							<div className="flex gap-2">
+								<Input
+									id={"share-link"}
+									value={`https://yourapp.com/board/${params.projectId}`}
+									readOnly
+									className="font-mono text-sm"
+								/>
+								<Button
+									variant="outline"
+									onClick={() => {
+										navigator.clipboard.writeText(
+											`https://yourapp.com/board/${params.projectId}`,
+										);
+									}}
+								>
+									Copy
+								</Button>
+							</div>
+						</div>
+						<Separator />
+						<div className="space-y-2">
+							<Label>Invite by Email</Label>
+							<div className="flex gap-2">
+								<Input placeholder="colleague@example.com" type="email" />
+								<Button>
+									<Send className="w-4 h-4 mr-2" />
+									Invite
+								</Button>
+							</div>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 
 			{/* Comments Dialog */}
 			<Dialog open={commentsDialogOpen} onOpenChange={setCommentsDialogOpen}>

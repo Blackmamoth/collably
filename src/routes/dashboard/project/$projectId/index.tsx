@@ -1,4 +1,9 @@
-import { createFileRoute, useParams, Link } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	useParams,
+	Link,
+	redirect,
+} from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,48 +25,76 @@ import {
 	CheckCircle2,
 	MoreVertical,
 } from "lucide-react";
+import { api } from "convex/_generated/api";
+import type { Id } from "convex/_generated/dataModel";
+import { useQuery } from "convex/react";
 
 export const Route = createFileRoute("/dashboard/project/$projectId/")({
 	component: RouteComponent,
+	beforeLoad: ({ context }) => {
+		const { user } = context;
+
+		if (user === undefined) {
+			throw redirect({ to: "/login" });
+		}
+
+		return { user };
+	},
+	loader: async ({ context, params }) => {
+		const { projectId } = params;
+
+		try {
+			const project = await context.convexClient.query(api.project.getProject, {
+				projectId: projectId as Id<"project">,
+			});
+			return { project };
+		} catch (error) {
+			throw redirect({ to: "/dashboard" });
+		}
+	},
 });
 
 function RouteComponent() {
-	const params = useParams({ from: "/dashboard/project/$projectId/" });
+	const params = useParams({ from: Route.id });
+
+	const { project } = Route.useLoaderData();
+
+	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers);
 
 	// Mock data
-	const project = {
-		id: params.projectId,
-		name: "Product Roadmap Q1",
-		description: "Planning and brainstorming for Q1 product initiatives",
-		members: [
-			{
-				name: "Alice",
-				avatar: "/placeholder.svg?height=32&width=32",
-				role: "Owner",
-			},
-			{
-				name: "Bob",
-				avatar: "/placeholder.svg?height=32&width=32",
-				role: "Member",
-			},
-			{
-				name: "Charlie",
-				avatar: "/placeholder.svg?height=32&width=32",
-				role: "Member",
-			},
-		],
-		stats: {
-			notes: 12,
-			tasks: 8,
-			completed: 3,
-			inProgress: 5,
-		},
-		recentActivity: [
-			{ user: "Alice", action: "added a note", time: "2 hours ago" },
-			{ user: "Bob", action: "completed a task", time: "5 hours ago" },
-			{ user: "Charlie", action: "moved a task", time: "1 day ago" },
-		],
-	};
+	// const project = {
+	// 	id: params.projectId,
+	// 	name: "Product Roadmap Q1",
+	// 	description: "Planning and brainstorming for Q1 product initiatives",
+	// 	members: [
+	// 		{
+	// 			name: "Alice",
+	// 			avatar: "/placeholder.svg?height=32&width=32",
+	// 			role: "Owner",
+	// 		},
+	// 		{
+	// 			name: "Bob",
+	// 			avatar: "/placeholder.svg?height=32&width=32",
+	// 			role: "Member",
+	// 		},
+	// 		{
+	// 			name: "Charlie",
+	// 			avatar: "/placeholder.svg?height=32&width=32",
+	// 			role: "Member",
+	// 		},
+	// 	],
+	// 	stats: {
+	// 		notes: 12,
+	// 		tasks: 8,
+	// 		completed: 3,
+	// 		inProgress: 5,
+	// 	},
+	// 	recentActivity: [
+	// 		{ user: "Alice", action: "added a note", time: "2 hours ago" },
+	// 		{ user: "Bob", action: "completed a task", time: "5 hours ago" },
+	// 		{ user: "Charlie", action: "moved a task", time: "1 day ago" },
+	// 	],
+	// };
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -84,19 +117,26 @@ function RouteComponent() {
 						</div>
 
 						<div className="flex items-center gap-2">
-							<div className="flex items-center -space-x-2 mr-2">
-								{project.members.map((member, idx) => (
-									<Avatar
-										key={idx}
-										className="w-8 h-8 border-2 border-background"
-									>
-										<AvatarImage src={member.avatar || "/placeholder.svg"} />
-										<AvatarFallback>{member.name[0]}</AvatarFallback>
-									</Avatar>
-								))}
-							</div>
+							{workspaceMembers && workspaceMembers.members.length > 0 && (
+								<div className="flex items-center -space-x-2 mr-2">
+									{workspaceMembers.members.map((member) => (
+										<Avatar
+											key={member.id}
+											className="w-8 h-8 border-2 border-background"
+										>
+											<AvatarImage
+												src={member.user.image || "/placeholder.svg"}
+											/>
+											<AvatarFallback>{member.user.name[0]}</AvatarFallback>
+										</Avatar>
+									))}
+								</div>
+							)}
 
-							<Link to={`/dashboard/project/${params.projectId}/settings`}>
+							<Link
+								to={`/dashboard/project/$projectId/settings`}
+								params={params}
+							>
 								<Button variant="outline" size="sm">
 									<Settings className="w-4 h-4 mr-2" />
 									Settings
@@ -133,7 +173,8 @@ function RouteComponent() {
 						<h2 className="text-lg font-semibold mb-4">Boards</h2>
 						<div className="grid md:grid-cols-2 gap-4">
 							<Link
-								to={`/dashboard/project/${params.projectId}/decision-board`}
+								to={`/dashboard/project/$projectId/decision-board`}
+								params={params}
 							>
 								<Card className="p-6 bg-card border-border hover:border-muted-foreground/20 transition-colors cursor-pointer group">
 									<div className="flex items-start justify-between mb-4">
@@ -141,7 +182,7 @@ function RouteComponent() {
 											<Layers className="w-6 h-6 text-primary" />
 										</div>
 										<Badge variant="secondary">
-											{project.stats.notes} notes
+											{/*{project.stats.notes} notes*/}
 										</Badge>
 									</div>
 									<h3 className="text-lg font-semibold mb-2">Decision Board</h3>
@@ -151,14 +192,17 @@ function RouteComponent() {
 								</Card>
 							</Link>
 
-							<Link to={`/dashboard/project/${params.id}/task-board`}>
+							<Link
+								to={`/dashboard/project/$projectId/task-board`}
+								params={params}
+							>
 								<Card className="p-6 bg-card border-border hover:border-muted-foreground/20 transition-colors cursor-pointer group">
 									<div className="flex items-start justify-between mb-4">
 										<div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
 											<Kanban className="w-6 h-6 text-primary" />
 										</div>
 										<Badge variant="secondary">
-											{project.stats.tasks} tasks
+											{/*{project.stats.tasks} tasks*/}
 										</Badge>
 									</div>
 									<h3 className="text-lg font-semibold mb-2">Task Board</h3>
@@ -180,7 +224,7 @@ function RouteComponent() {
 										<Layers className="w-5 h-5 text-blue-500" />
 									</div>
 									<div>
-										<p className="text-2xl font-bold">{project.stats.notes}</p>
+										{/*<p className="text-2xl font-bold">{project.stats.notes}</p>*/}
 										<p className="text-xs text-muted-foreground">Total Notes</p>
 									</div>
 								</div>
@@ -192,7 +236,7 @@ function RouteComponent() {
 										<Kanban className="w-5 h-5 text-purple-500" />
 									</div>
 									<div>
-										<p className="text-2xl font-bold">{project.stats.tasks}</p>
+										{/*<p className="text-2xl font-bold">{project.stats.tasks}</p>*/}
 										<p className="text-xs text-muted-foreground">Total Tasks</p>
 									</div>
 								</div>
@@ -205,7 +249,7 @@ function RouteComponent() {
 									</div>
 									<div>
 										<p className="text-2xl font-bold">
-											{project.stats.completed}
+											{/*{project.stats.completed}*/}
 										</p>
 										<p className="text-xs text-muted-foreground">Completed</p>
 									</div>
@@ -219,7 +263,7 @@ function RouteComponent() {
 									</div>
 									<div>
 										<p className="text-2xl font-bold">
-											{project.stats.inProgress}
+											{/*{project.stats.inProgress}*/}
 										</p>
 										<p className="text-xs text-muted-foreground">In Progress</p>
 									</div>
@@ -231,35 +275,39 @@ function RouteComponent() {
 					{/* Team & Activity */}
 					<div className="grid md:grid-cols-2 gap-6">
 						{/* Team Members */}
-						<div>
-							<h2 className="text-lg font-semibold mb-4">Team Members</h2>
-							<Card className="divide-y divide-border">
-								{project.members.map((member, idx) => (
-									<div
-										key={idx}
-										className="p-4 flex items-center justify-between"
-									>
-										<div className="flex items-center gap-3">
-											<Avatar className="w-10 h-10">
-												<AvatarImage
-													src={member.avatar || "/placeholder.svg"}
-												/>
-												<AvatarFallback>{member.name[0]}</AvatarFallback>
-											</Avatar>
-											<div>
-												<p className="font-medium text-sm">{member.name}</p>
-												<p className="text-xs text-muted-foreground">
-													{member.role}
-												</p>
+						{workspaceMembers && workspaceMembers?.members?.length > 0 && (
+							<div>
+								<h2 className="text-lg font-semibold mb-4">Team Members</h2>
+								<Card className="divide-y divide-border">
+									{workspaceMembers?.members?.map((member, idx) => (
+										<div
+											key={idx}
+											className="p-4 flex items-center justify-between"
+										>
+											<div className="flex items-center gap-3">
+												<Avatar className="w-10 h-10">
+													<AvatarImage
+														src={member.user.image || "/placeholder.svg"}
+													/>
+													<AvatarFallback>{member.user.name[0]}</AvatarFallback>
+												</Avatar>
+												<div>
+													<p className="font-medium text-sm">
+														{member.user.name}
+													</p>
+													<p className="text-xs text-muted-foreground">
+														{member.role}
+													</p>
+												</div>
 											</div>
 										</div>
-									</div>
-								))}
-							</Card>
-						</div>
+									))}
+								</Card>
+							</div>
+						)}
 
 						{/* Recent Activity */}
-						<div>
+						{/*<div>
 							<h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
 							<Card className="divide-y divide-border">
 								{project.recentActivity.map((activity, idx) => (
@@ -287,7 +335,7 @@ function RouteComponent() {
 									</div>
 								))}
 							</Card>
-						</div>
+						</div>*/}
 					</div>
 				</div>
 			</main>

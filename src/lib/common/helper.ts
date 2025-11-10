@@ -46,3 +46,25 @@ export const formatDateSince = (date: Date) => {
 export const formatExpiresIn = (date: Date) => {
 	return `Expires ${formatDistanceToNow(date, { addSuffix: true })}`;
 };
+
+// Helper function to generate consistent colors from member IDs
+export const generateColorFromId = (id: string): string => {
+	const colors = [
+		"#3b82f6", // blue
+		"#10b981", // green
+		"#f59e0b", // amber
+		"#ef4444", // red
+		"#8b5cf6", // violet
+		"#ec4899", // pink
+		"#06b6d4", // cyan
+		"#f97316", // orange
+	];
+
+	// Simple hash function
+	let hash = 0;
+	for (let i = 0; i < id.length; i++) {
+		hash = id.charCodeAt(i) + ((hash << 5) - hash);
+	}
+
+	return colors[Math.abs(hash) % colors.length];
+};

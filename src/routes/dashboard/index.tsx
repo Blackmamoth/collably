@@ -1,6 +1,5 @@
 import {
 	createFileRoute,
-	Link,
 	redirect,
 	useRouteContext,
 } from "@tanstack/react-router";
