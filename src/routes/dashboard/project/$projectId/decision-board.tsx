@@ -11,6 +11,7 @@ import {
 	X,
 } from "lucide-react";
 import type {
+	BoardElement,
 	CanvasElement,
 	ConnectorElement,
 	ElementType,
@@ -121,34 +122,7 @@ function RouteComponent() {
 			projectId: params.projectId as Id<"project">,
 		}) || [];
 
-	// Convert Convex DB shape → current UI element shape
-	const normalizedElements = useMemo(() => {
-		return (elements || []).map((e) => ({
-			...e,
-			position: { x: e.x, y: e.y },
-			size:
-				e.width && e.height ? { width: e.width, height: e.height } : undefined,
-			endPosition: e.endX && e.endY ? { x: e.endX, y: e.endY } : undefined,
-		}));
-	}, [elements]);
-
-	const insertElement = useMutation(api.element.insertElement);
-	const updateElement = useMutation(api.element.updateElement);
-	const deleteElement = useMutation(api.element.deleteElement);
-
-	type UpdateElementArgs = Parameters<typeof updateElement>[0];
-	type Patch = UpdateElementArgs["patch"];
-
-	const throttledElementUpdate = useMemo(() => {
-		return throttle(async (id: Id<"element">, patch: Patch) => {
-			await updateElement({
-				projectId: params.projectId as Id<"project">,
-				id,
-				patch,
-			});
-		}, 80);
-	}, [updateElement, params.projectId]);
-
+	const [localElements, setLocalElements] = useState<typeof elements>([]);
 	const [selectedTool, setSelectedTool] = useState<
 		ElementType | "select" | "hand"
 	>("select");
@@ -191,6 +165,46 @@ function RouteComponent() {
 	const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
 	const canvasRef = useRef<HTMLDivElement>(null);
+
+	const isEditingElement = useCallback(
+		(id: Id<"element">) => editingElement === id,
+		[editingElement],
+	);
+
+	useEffect(() => {
+		// Only sync server if we're not editing anything
+		if (!editingElement) {
+			setLocalElements(elements);
+		}
+	}, [elements, editingElement]);
+
+	// // Convert Convex DB shape → current UI element shape
+	// const normalizedElements = useMemo(() => {
+	// 	return (elements || []).map((e) => ({
+	// 		...e,
+	// 		position: { x: e.x, y: e.y },
+	// 		size:
+	// 			e.width && e.height ? { width: e.width, height: e.height } : undefined,
+	// 		endPosition: e.endX && e.endY ? { x: e.endX, y: e.endY } : undefined,
+	// 	}));
+	// }, [elements]);
+
+	const insertElement = useMutation(api.element.insertElement);
+	const updateElement = useMutation(api.element.updateElement);
+	const deleteElement = useMutation(api.element.deleteElement);
+
+	type UpdateElementArgs = Parameters<typeof updateElement>[0];
+	type Patch = UpdateElementArgs["patch"];
+
+	const throttledElementUpdate = useMemo(() => {
+		return throttle(async (id: Id<"element">, patch: Patch) => {
+			await updateElement({
+				projectId: params.projectId as Id<"project">,
+				id,
+				patch,
+			});
+		}, 80);
+	}, [updateElement, params.projectId]);
 
 	const screenToCanvas = (screenX: number, screenY: number) => {
 		if (!canvasRef.current) return { x: 0, y: 0 };
@@ -237,47 +251,96 @@ function RouteComponent() {
 				});
 			} else if (selectedTool === "text") {
 				const canvasPos = screenToCanvas(e.clientX, e.clientY);
+				const now = Date.now();
 
-				const id = await insertElement({
-					element: {
-						projectId: params.projectId as Id<"project">,
-						elementType: "text",
-						x: canvasPos.x,
-						y: canvasPos.y,
-						content: "Edit me",
-						fontSize: 16,
-						fontWeight: "normal",
-						color: "#ffffff",
-						createdBy: user.id,
-						votes: 0,
+				const newElement: Omit<
+					BoardElement,
+					"_id" | "_creationTime" | "createdAt" | "updatedAt"
+				> = {
+					projectId: params.projectId as Id<"project">,
+					elementType: "text",
+					x: canvasPos.x,
+					y: canvasPos.y,
+					content: "Edit me",
+					fontSize: 16,
+					fontWeight: "normal",
+					color: "#ffffff",
+					createdBy: user.id,
+					votes: 0,
+				};
+
+				const tempId = `temp-id-${now}` as Id<"element">;
+
+				setLocalElements((prev) => [
+					...prev,
+					{
+						...newElement,
+						_id: tempId,
+						_creationTime: now,
+						createdAt: now,
+						updatedAt: now,
 					},
-				});
-				setSelectedElement(id);
-				setEditingElement(id);
+				]);
 
 				setSelectedTool("select");
-			} else if (selectedTool === "note") {
-				const canvasPos = screenToCanvas(e.clientX, e.clientY);
 
 				const id = await insertElement({
-					element: {
-						projectId: params.projectId as Id<"project">,
-						elementType: "note",
-						x: canvasPos.x,
-						y: canvasPos.y,
-						content: "Edit me",
-						fontSize: 16,
-						fontWeight: "normal",
-						color: "#ffffff",
-						createdBy: user.id,
-						votes: 0,
-					},
+					element: newElement,
 				});
+
+				setLocalElements((prev) =>
+					prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
+				);
 
 				setSelectedElement(id);
 				setEditingElement(id);
+			} else if (selectedTool === "note") {
+				const canvasPos = screenToCanvas(e.clientX, e.clientY);
+				const now = Date.now();
+
+				const newElement: Omit<
+					BoardElement,
+					"_id" | "_creationTime" | "createdAt" | "updatedAt"
+				> = {
+					projectId: params.projectId as Id<"project">,
+					elementType: "note",
+					x: canvasPos.x,
+					y: canvasPos.y,
+					width: 240,
+					height: 160,
+					content: "Edit me",
+					fontSize: 16,
+					fontWeight: "normal",
+					color: "#ffffff",
+					createdBy: user.id,
+					votes: 0,
+				};
+
+				const tempId = `temp-id-${now}` as Id<"element">;
+
+				setLocalElements((prev) => [
+					...prev,
+					{
+						...newElement,
+						_id: tempId,
+						_creationTime: now,
+						createdAt: now,
+						updatedAt: now,
+					},
+				]);
 
 				setSelectedTool("select"); // Switch back to select tool after adding
+
+				const id = await insertElement({
+					element: newElement,
+				});
+
+				setLocalElements((prev) =>
+					prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
+				);
+
+				setSelectedElement(id);
+				setEditingElement(id);
 			} else {
 				// If selecting tool is 'select' or 'hand' and not panning, deselect elements
 				setSelectedElement(null);
@@ -289,7 +352,7 @@ function RouteComponent() {
 					.elementId || "-1";
 
 			if (clickedElementId !== -1) {
-				const element = elements.find((el) => el._id === clickedElementId);
+				const element = localElements.find((el) => el._id === clickedElementId);
 				if (element) {
 					if (selectedTool === "select") {
 						setSelectedElement(element._id);
@@ -299,12 +362,6 @@ function RouteComponent() {
 							x: canvasPos.x - element.x,
 							y: canvasPos.y - element.y,
 						});
-
-						// Bring selected element to front
-						// setElements((prev) => {
-						// 	const filtered = prev.filter((el) => el.id !== clickedElementId);
-						// 	return [...filtered, element];
-						// });
 					} else if (
 						(selectedTool === "arrow" || selectedTool === "line") &&
 						element.elementType !== "arrow" &&
@@ -345,7 +402,7 @@ function RouteComponent() {
 			const dy = canvasPos.y - resizingElement.startPos.y;
 
 			const { id, handle, startSize, startElementPos } = resizingElement;
-			const el = elements.find((el) => el._id === id);
+			const el = localElements.find((el) => el._id === id);
 			if (!el) return;
 
 			let width = startSize.width;
@@ -370,7 +427,7 @@ function RouteComponent() {
 
 		if (draggedElement !== null) {
 			const canvasPos = screenToCanvas(e.clientX, e.clientY);
-			const draggedEl = elements.find((el) => el._id === draggedElement);
+			const draggedEl = localElements.find((el) => el._id === draggedElement);
 			if (!draggedEl) return;
 
 			if (draggedEl?.groupId) {
@@ -406,6 +463,12 @@ function RouteComponent() {
 				const newX = canvasPos.x - dragOffset.x;
 				const newY = canvasPos.y - dragOffset.y;
 
+				setLocalElements((prev) =>
+					prev.map((el) =>
+						el._id === draggedElement ? { ...el, x: newX, y: newY } : el,
+					),
+				);
+
 				throttledElementUpdate(draggedEl._id, {
 					x: newX,
 					y: newY,
@@ -427,6 +490,19 @@ function RouteComponent() {
 			return;
 		}
 
+		if (draggedElement) {
+			const el = localElements.find((el) => el._id === draggedElement);
+			if (el) {
+				updateElement({
+					projectId: params.projectId as Id<"project">,
+					id: el._id,
+					patch: { x: el.x, y: el.y },
+				});
+			}
+			setDraggedElement(null);
+			return;
+		}
+
 		if (resizingElement) {
 			setResizingElement(null);
 			return;
@@ -441,20 +517,46 @@ function RouteComponent() {
 					Math.abs(canvasPos.x - drawStart.x) > 10 ||
 					Math.abs(canvasPos.y - drawStart.y) > 10
 				) {
-					await insertElement({
-						element: {
-							projectId: params.projectId as Id<"project">,
-							elementType: selectedTool,
-							x: drawStart.x,
-							y: drawStart.y,
-							endX: canvasPos.x,
-							endY: canvasPos.y,
-							strokeColor: "#ffffff",
-							strokeWidth: 2,
-							createdBy: user.id,
-							votes: 0,
+					const now = Date.now();
+
+					const newElement: Omit<
+						BoardElement,
+						"_id" | "_creationTime" | "createdAt" | "updatedAt"
+					> = {
+						projectId: params.projectId as Id<"project">,
+						elementType: selectedTool,
+						x: drawStart.x,
+						y: drawStart.y,
+						endX: canvasPos.x,
+						endY: canvasPos.y,
+						strokeColor: "#ffffff",
+						strokeWidth: 2,
+						createdBy: user.id,
+						votes: 0,
+					};
+
+					const tempId = `temp-id-${now}` as Id<"element">;
+
+					setLocalElements((prev) => [
+						...prev,
+						{
+							...newElement,
+							_id: tempId,
+							_creationTime: now,
+							createdAt: now,
+							updatedAt: now,
 						},
+					]);
+
+					setSelectedTool("select");
+
+					const id = await insertElement({
+						element: newElement,
 					});
+
+					setLocalElements((prev) =>
+						prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
+					);
 				}
 			}
 
@@ -465,28 +567,51 @@ function RouteComponent() {
 				if (width > 10 || height > 10) {
 					const now = Date.now();
 
-					await insertElement({
-						element: {
-							projectId: params.projectId as Id<"project">,
-							elementType: selectedTool,
-							x: Math.min(drawStart.x, canvasPos.x),
-							y: Math.min(drawStart.y, canvasPos.y),
-							width: Math.max(width, 50),
-							height: Math.max(height, 50),
-							fillColor: "transparent",
-							strokeColor: "#ffffff",
-							strokeWidth: 2,
-							createdBy: user.id,
-							votes: 0,
+					const newElement: Omit<
+						BoardElement,
+						"_id" | "_creationTime" | "createdAt" | "updatedAt"
+					> = {
+						projectId: params.projectId as Id<"project">,
+						elementType: selectedTool,
+						x: Math.min(drawStart.x, canvasPos.x),
+						y: Math.min(drawStart.y, canvasPos.y),
+						width: Math.max(width, 50),
+						height: Math.max(height, 50),
+						fillColor: "transparent",
+						strokeColor: "#ffffff",
+						strokeWidth: 2,
+						createdBy: user.id,
+						votes: 0,
+					};
+
+					const tempId = `temp-id-${now}` as Id<"element">;
+
+					setLocalElements((prev) => [
+						...prev,
+						{
+							...newElement,
+							_id: tempId,
+							_creationTime: now,
+							createdAt: now,
+							updatedAt: now,
 						},
+					]);
+
+					setSelectedTool("select");
+
+					const id = await insertElement({
+						element: newElement,
 					});
-					// setElements([...elements, newElement]);
+
+					setLocalElements((prev) =>
+						prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
+					);
 				}
 			}
 
 			setIsDrawing(false);
 			setPreviewElement(null);
-			setSelectedTool("select"); // Switch back to select tool after drawing
+			setSelectedTool("select");
 		}
 
 		setDraggedElement(null);
@@ -499,7 +624,7 @@ function RouteComponent() {
 		if (selectedTool !== "select") return;
 		e.stopPropagation();
 
-		const element = elements.find((el) => el._id === elementId);
+		const element = localElements.find((el) => el._id === elementId);
 		if (!element) return;
 
 		const canvasPos = screenToCanvas(e.clientX, e.clientY);
@@ -516,7 +641,7 @@ function RouteComponent() {
 		elementId: Id<"element">,
 	) => {
 		e.stopPropagation();
-		const element = elements.find((el) => el._id === elementId);
+		const element = localElements.find((el) => el._id === elementId);
 		if (
 			element &&
 			(element.elementType === "arrow" || element.elementType === "line")
@@ -533,7 +658,7 @@ function RouteComponent() {
 		handle: ResizeHandle,
 	) => {
 		e.stopPropagation();
-		const element = elements.find((el) => el._id === elementId);
+		const element = localElements.find((el) => el._id === elementId);
 		if (
 			!element ||
 			(element.elementType !== "note" &&
@@ -556,7 +681,12 @@ function RouteComponent() {
 		elementId: Id<"element">,
 		newContent: string,
 	) => {
-		throttledElementUpdate(elementId, { content: newContent });
+		// throttledElementUpdate(elementId, { content: newContent });
+		setLocalElements((prev) =>
+			prev.map((el) =>
+				el._id === elementId ? { ...el, content: newContent } : el,
+			),
+		);
 	};
 
 	const handleWheel = (e: React.WheelEvent) => {
@@ -856,8 +986,10 @@ function RouteComponent() {
 		setSelectedTool("select");
 	};
 
-	const selectedElementData = elements.find((el) => el._id === selectedElement);
-	const selectedNoteData = elements.find(
+	const selectedElementData = localElements.find(
+		(el) => el._id === selectedElement,
+	);
+	const selectedNoteData = localElements.find(
 		(el) =>
 			el._id === selectedNoteForComments &&
 			(el.elementType === "note" || el.elementType === "sticky"),
@@ -948,6 +1080,13 @@ function RouteComponent() {
 		return () => clearInterval(interval);
 	}, [currentMember, params.projectId, updatePresence]);
 
+	const getMember = useCallback(
+		(memberId: string) => {
+			return workspaceMembers?.members?.find((m) => m.id === memberId) || null;
+		},
+		[workspaceMembers],
+	);
+
 	// Cleanup on unmount / page leave
 	useEffect(() => {
 		return () => {
@@ -1016,7 +1155,7 @@ function RouteComponent() {
 						}}
 					>
 						{/* Render all elements */}
-						{normalizedElements.map((element) => {
+						{localElements.map((element) => {
 							const elementKey = element._id;
 							const commonProps = {
 								"data-element-id": element._id,
@@ -1029,6 +1168,9 @@ function RouteComponent() {
 								const colors = getColorClasses(element.color || "");
 								const isSelected = selectedElement === element._id;
 								const isEditing = editingElement === element._id;
+
+								const memberName =
+									getMember(element.createdBy)?.user?.name || "Member";
 
 								return (
 									<div
@@ -1086,12 +1228,10 @@ function RouteComponent() {
 											<div className="flex items-center gap-2">
 												<Avatar className="w-6 h-6">
 													<AvatarFallback className="text-xs">
-														{/*{element.author[0]}*/}
+														{memberName[0]}
 													</AvatarFallback>
 												</Avatar>
-												<span className="text-xs opacity-70">
-													{/*{element.author}*/}
-												</span>
+												<span className="text-xs opacity-70">{memberName}</span>
 											</div>
 											<Button
 												variant="ghost"
@@ -1118,7 +1258,19 @@ function RouteComponent() {
 												onChange={(e) =>
 													handleContentUpdate(element._id, e.target.value)
 												}
-												onBlur={() => setEditingElement(null)}
+												onBlur={() => {
+													const el = localElements.find(
+														(e) => e._id === element._id,
+													);
+													if (el) {
+														updateElement({
+															projectId: params.projectId as Id<"project">,
+															id: el._id,
+															patch: { content: el.content },
+														});
+													}
+													setEditingElement(null);
+												}}
 												// autoFocus
 												onClick={(e) => e.stopPropagation()}
 											/>
@@ -1173,72 +1325,66 @@ function RouteComponent() {
 
 							if (element.elementType === "text") {
 								const isSelected = selectedElement === element._id;
-								const isEditing = editingElement === element._id;
+								const isEditing = isEditingElement(element._id);
 
 								return (
 									<div
 										key={elementKey}
 										{...commonProps}
-										className={`absolute px-2 py-1 ${isSelected ? "ring-2 ring-primary ring-offset-2 rounded" : ""}`}
+										className={`absolute px-2 py-1 ${
+											isSelected
+												? "ring-2 ring-primary ring-offset-2 rounded"
+												: ""
+										}`}
 										style={{
 											left: element.x,
 											top: element.y,
-											fontSize: element.fontSize,
-											fontWeight: element.fontWeight,
-											color: element.color,
+											fontSize: element.fontSize ?? 16,
+											fontWeight: element.fontWeight ?? "normal",
+											color: element.color ?? "#ffffff",
 											cursor: selectedTool === "select" ? "move" : "default",
-											minWidth:
-												element.fontSize && element.fontSize > 20
-													? "300px"
-													: "100px",
-											maxWidth: "600px",
+											whiteSpace: "pre-wrap",
+											wordBreak: "break-word",
+											minWidth: 100,
+											maxWidth: 600,
 										}}
 										onMouseDown={(e) => handleElementMouseDown(e, element._id)}
-										onDoubleClick={(e) =>
-											handleElementDoubleClick(e, element._id)
-										}
+										onDoubleClick={(e) => {
+											e.stopPropagation();
+											setEditingElement(element._id);
+											setSelectedElement(element._id);
+										}}
 									>
 										{isEditing ? (
 											<textarea
-												className="bg-transparent border border-border rounded px-2 py-1 outline-none min-w-[100px] resize-none overflow-hidden"
+												className="bg-transparent border border-border rounded px-2 py-1 outline-none resize-none overflow-hidden"
 												style={{
-													fontSize: element.fontSize,
-													fontWeight: element.fontWeight,
-													color: element.color,
-													whiteSpace: "pre-wrap",
+													fontSize: element.fontSize ?? 16,
+													fontWeight: element.fontWeight ?? "normal",
+													color: element.color ?? "#ffffff",
 												}}
-												value={element.content}
+												value={element.content ?? ""}
 												onChange={(e) => {
 													handleContentUpdate(element._id, e.target.value);
-													// Auto-resize textarea to fit content
 													e.target.style.height = "auto";
-													e.target.style.height = e.target.scrollHeight + "px";
+													e.target.style.height = `${e.target.scrollHeight}px`;
 												}}
-												onBlur={() => setEditingElement(null)}
-												onClick={(e) => e.stopPropagation()}
-												rows={1}
-												ref={(el) => {
-													if (el && isEditing) {
-														el.focus();
-														el.style.height = "auto";
-														el.style.height = el.scrollHeight + "px";
-														// Move cursor to end
-														el.setSelectionRange(
-															el.value.length,
-															el.value.length,
-														);
+												onBlur={() => {
+													const el = localElements.find(
+														(x) => x._id === element._id,
+													);
+													if (el) {
+														updateElement({
+															projectId: params.projectId as Id<"project">,
+															id: el._id,
+															patch: { content: el.content },
+														});
 													}
+													setEditingElement(null);
 												}}
 											/>
 										) : (
-											<div
-												style={{
-													whiteSpace: "pre-wrap",
-													wordBreak: "break-word",
-												}}
-											>
-												{element.content}
-											</div>
+											<div>{element.content}</div>
 										)}
 									</div>
 								);

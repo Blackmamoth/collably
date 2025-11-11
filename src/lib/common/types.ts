@@ -62,7 +62,7 @@ export interface BoardElement {
 	fontSize?: number | undefined;
 	fontWeight?: string | undefined;
 	groupId?: string | undefined;
-	votes?: number | undefined;
+	votes: number;
 	createdBy: string;
 	createdAt: number;
 	updatedAt: number;
