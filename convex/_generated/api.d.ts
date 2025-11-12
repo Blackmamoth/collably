@@ -8,12 +8,15 @@
  * @module
  */
 
+import type * as ai from "../ai.js";
 import type * as auth from "../auth.js";
 import type * as element from "../element.js";
 import type * as http from "../http.js";
 import type * as permissions from "../permissions.js";
 import type * as presence from "../presence.js";
 import type * as project from "../project.js";
+import type * as prompts from "../prompts.js";
+import type * as task from "../task.js";
 import type * as workspace from "../workspace.js";
 
 import type {
@@ -31,12 +34,15 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  ai: typeof ai;
   auth: typeof auth;
   element: typeof element;
   http: typeof http;
   permissions: typeof permissions;
   presence: typeof presence;
   project: typeof project;
+  prompts: typeof prompts;
+  task: typeof task;
   workspace: typeof workspace;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

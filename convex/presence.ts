@@ -41,14 +41,18 @@ export const updatePresence = mutation({
 				lastSeen: now,
 				cursorX: args.cursorX,
 				cursorY: args.cursorY,
+				updatedAt: now,
 			});
 		} else {
+			const now = Date.now();
 			await ctx.db.insert("presence", {
 				projectId: project._id,
 				memberId: member.id,
 				lastSeen: now,
 				cursorX: args.cursorX,
 				cursorY: args.cursorY,
+				createdAt: now,
+				updatedAt: now,
 			});
 		}
 	},

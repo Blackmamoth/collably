@@ -59,12 +59,15 @@ export default defineSchema({
 		projectId: v.id("project"),
 		summary: v.string(),
 		lastGeneratedAt: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
 	}).index("by_project", ["projectId"]),
 	comment: defineTable({
 		elementId: v.id("element"),
 		userId: v.string(),
 		text: v.string(),
 		createdAt: v.number(),
+		updatedAt: v.number(),
 	}),
 	presence: defineTable({
 		projectId: v.id("project"),
@@ -72,7 +75,30 @@ export default defineSchema({
 		lastSeen: v.number(),
 		cursorX: v.optional(v.number()),
 		cursorY: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
 	})
 		.index("by_project", ["projectId"])
 		.index("by_project_and_member", ["projectId", "memberId"]),
+	task: defineTable({
+		projectId: v.id("project"),
+		parentTaskId: v.optional(v.id("task")),
+		title: v.string(),
+		description: v.optional(v.string()),
+		assignee: v.string(),
+		status: v.union(
+			v.literal("todo"),
+			v.literal("inprogress"),
+			v.literal("done"),
+		),
+		priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+		dueDate: v.optional(v.number()),
+		tags: v.array(v.string()),
+		createdBy: v.string(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_project", ["projectId"])
+		.index("by_creator", ["createdBy"])
+		.index("by_parent", ["parentTaskId"]),
 });

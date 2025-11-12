@@ -43,8 +43,11 @@ export const formatDateSince = (date: Date | number) => {
 	return format(date, "MMM yyyy");
 };
 
-export const formatExpiresIn = (date: Date | number) => {
-	return `Expires ${formatDistanceToNow(date, { addSuffix: true })}`;
+export const formatDateUntil = (
+	date: Date | number,
+	prefix: string = "Expires",
+) => {
+	return `${prefix} ${formatDistanceToNow(date, { addSuffix: true })}`;
 };
 
 // Helper function to generate consistent colors from member IDs

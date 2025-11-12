@@ -1,7 +1,7 @@
 import type { User } from "better-auth";
 import type { authClient } from "../auth-client";
 import type { Member } from "better-auth/plugins";
-import type { Id } from "convex/_generated/dataModel";
+import type { Doc, Id } from "convex/_generated/dataModel";
 
 export interface Workspace {
 	id: string;
@@ -149,4 +149,14 @@ export interface LiveCursor {
 	name: string;
 	color: string;
 	position: { x: number; y: number };
+}
+
+export interface TaskWithSubtasks extends Doc<"task"> {
+	subTasks: Doc<"task">[];
+}
+
+export interface GroupedTasks {
+	title: string;
+	status: "todo" | "inprogress" | "done";
+	tasks: TaskWithSubtasks[];
 }

@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { formatExpiresIn } from "@/lib/common/helper";
+import { formatDateUntil } from "@/lib/common/helper";
 import { Button } from "@/components/ui/button";
 import type { Invitation } from "better-auth/plugins";
 
@@ -46,7 +46,7 @@ export default function InvitationList({
 									</Badge>
 									<span className="text-xs text-muted-foreground">•</span>
 									<p className="text-xs text-muted-foreground">
-										{formatExpiresIn(invite.expiresAt)}
+										{formatDateUntil(invite.expiresAt)}
 									</p>
 								</div>
 							</div>

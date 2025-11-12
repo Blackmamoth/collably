@@ -39,7 +39,7 @@ import {
 import type { Invitation } from "better-auth/plugins";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
-import { formatExpiresIn } from "@/lib/common/helper";
+import { formatDateUntil } from "@/lib/common/helper";
 
 interface WorkspaceInvitation extends Invitation {
 	organizationName: string;
@@ -324,7 +324,7 @@ function RouteComponent() {
 										Invitation expires
 									</p>
 									<p className="font-medium">
-										{formatExpiresIn(invitation.expiresAt)}
+										{formatDateUntil(invitation.expiresAt)}
 									</p>
 								</div>
 							</div>
