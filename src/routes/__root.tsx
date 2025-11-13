@@ -18,6 +18,7 @@ import {
 	getCookieName,
 } from "@convex-dev/better-auth/react-start";
 import { authClient } from "@/lib/auth-client";
+import { AutumnProvider } from "autumn-js/react";
 
 // Import Geist fonts
 import "@fontsource/geist-sans/400.css";
@@ -110,34 +111,36 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					client={context.convexClient}
 					authClient={authClient}
 				>
-					<WorkspaceProvider>
-						<ThemeProvider
-							attribute="class"
-							defaultTheme="dark"
-							enableSystem
-							disableTransitionOnChange
-						>
-							{children}
-							<TanStackDevtools
-								config={{
-									position: "bottom-right",
-								}}
-								plugins={[
-									{
-										name: "Tanstack Router",
-										render: <TanStackRouterDevtoolsPanel />,
-									},
-								]}
-							/>
-							<Toaster
-								position="bottom-right"
-								expand={false}
-								richColors
-								closeButton
-								duration={4000}
-							/>
-						</ThemeProvider>
-					</WorkspaceProvider>
+					<AutumnProvider betterAuthUrl={import.meta.env.VITE_BETTER_AUTH_URL}>
+						<WorkspaceProvider>
+							<ThemeProvider
+								attribute="class"
+								defaultTheme="dark"
+								enableSystem
+								disableTransitionOnChange
+							>
+								{children}
+								<TanStackDevtools
+									config={{
+										position: "bottom-right",
+									}}
+									plugins={[
+										{
+											name: "Tanstack Router",
+											render: <TanStackRouterDevtoolsPanel />,
+										},
+									]}
+								/>
+								<Toaster
+									position="bottom-right"
+									expand={false}
+									richColors
+									closeButton
+									duration={4000}
+								/>
+							</ThemeProvider>
+						</WorkspaceProvider>
+					</AutumnProvider>
 				</ConvexBetterAuthProvider>
 				<Scripts />
 			</body>

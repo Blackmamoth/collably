@@ -19,6 +19,7 @@ import { Route as InviteInvitationIdRouteImport } from './routes/invite.$invitat
 import { Route as EmailVerifyOtpRouteImport } from './routes/email.verify-otp'
 import { Route as DashboardTeamRouteImport } from './routes/dashboard/team'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
+import { Route as DashboardBillingPlansRouteImport } from './routes/dashboard/billing.plans'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as DashboardWorkspaceSettingsIndexRouteImport } from './routes/dashboard/workspace/settings/index'
 import { Route as DashboardProjectProjectIdIndexRouteImport } from './routes/dashboard/project/$projectId/index'
@@ -76,6 +77,11 @@ const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   path: '/dashboard/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardBillingPlansRoute = DashboardBillingPlansRouteImport.update({
+  id: '/dashboard/billing/plans',
+  path: '/dashboard/billing/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/invite/$invitationId': typeof InviteInvitationIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/dashboard/billing/plans': typeof DashboardBillingPlansRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
   '/dashboard/project/$projectId/settings': typeof DashboardProjectProjectIdSettingsRoute
   '/dashboard/project/$projectId/task-board': typeof DashboardProjectProjectIdTaskBoardRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/invite/$invitationId': typeof InviteInvitationIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/dashboard/billing/plans': typeof DashboardBillingPlansRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
   '/dashboard/project/$projectId/settings': typeof DashboardProjectProjectIdSettingsRoute
   '/dashboard/project/$projectId/task-board': typeof DashboardProjectProjectIdTaskBoardRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/invite/$invitationId': typeof InviteInvitationIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/dashboard/billing/plans': typeof DashboardBillingPlansRoute
   '/dashboard/project/$projectId/decision-board': typeof DashboardProjectProjectIdDecisionBoardRoute
   '/dashboard/project/$projectId/settings': typeof DashboardProjectProjectIdSettingsRoute
   '/dashboard/project/$projectId/task-board': typeof DashboardProjectProjectIdTaskBoardRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/invite/$invitationId'
     | '/dashboard'
     | '/api/auth/$'
+    | '/dashboard/billing/plans'
     | '/dashboard/project/$projectId/decision-board'
     | '/dashboard/project/$projectId/settings'
     | '/dashboard/project/$projectId/task-board'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/invite/$invitationId'
     | '/dashboard'
     | '/api/auth/$'
+    | '/dashboard/billing/plans'
     | '/dashboard/project/$projectId/decision-board'
     | '/dashboard/project/$projectId/settings'
     | '/dashboard/project/$projectId/task-board'
@@ -217,6 +228,7 @@ export interface FileRouteTypes {
     | '/invite/$invitationId'
     | '/dashboard/'
     | '/api/auth/$'
+    | '/dashboard/billing/plans'
     | '/dashboard/project/$projectId/decision-board'
     | '/dashboard/project/$projectId/settings'
     | '/dashboard/project/$projectId/task-board'
@@ -236,6 +248,7 @@ export interface RootRouteChildren {
   InviteInvitationIdRoute: typeof InviteInvitationIdRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  DashboardBillingPlansRoute: typeof DashboardBillingPlansRoute
   DashboardProjectProjectIdDecisionBoardRoute: typeof DashboardProjectProjectIdDecisionBoardRoute
   DashboardProjectProjectIdSettingsRoute: typeof DashboardProjectProjectIdSettingsRoute
   DashboardProjectProjectIdTaskBoardRoute: typeof DashboardProjectProjectIdTaskBoardRoute
@@ -315,6 +328,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/billing/plans': {
+      id: '/dashboard/billing/plans'
+      path: '/dashboard/billing/plans'
+      fullPath: '/dashboard/billing/plans'
+      preLoaderRoute: typeof DashboardBillingPlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -372,6 +392,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteInvitationIdRoute: InviteInvitationIdRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  DashboardBillingPlansRoute: DashboardBillingPlansRoute,
   DashboardProjectProjectIdDecisionBoardRoute:
     DashboardProjectProjectIdDecisionBoardRoute,
   DashboardProjectProjectIdSettingsRoute:

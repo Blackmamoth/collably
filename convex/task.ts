@@ -54,6 +54,7 @@ export const createTask = action({
 			console.error(error);
 			tags = [];
 		}
+
 		const taskId: Id<"task"> = await ctx.runMutation(internal.task.saveTask, {
 			...args,
 			tags,
@@ -119,6 +120,21 @@ export const saveTask = internalMutation({
 export const generateSubTasks = action({
 	args: { taskId: v.id("task") },
 	handler: async (ctx, args) => {
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
+		const data = await auth.api.check({
+			headers,
+			body: {
+				featureId: "ai_summaries_and_subtask_generation",
+			},
+		});
+
+		if (!data.allowed) {
+			throw new ConvexError(
+				"You have reached the maximum number of AI credits available for your account.",
+			);
+		}
+
 		const task = await ctx.runQuery(internal.task.getTaskById, {
 			taskId: args.taskId,
 		});
@@ -172,6 +188,11 @@ export const generateSubTasks = action({
 				dueDate: undefined,
 			});
 		}
+
+		await auth.api.track({
+			body: { featureId: "ai_summaries_and_subtask_generation", value: 1 },
+			headers: headers,
+		});
 	},
 });
 

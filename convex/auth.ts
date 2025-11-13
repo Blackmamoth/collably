@@ -6,6 +6,7 @@ import { betterAuth } from "better-auth";
 import { emailOTP, organization } from "better-auth/plugins";
 import authSchema from "./betterAuth/schema";
 import { ac, member, owner, viewer } from "./permissions";
+import { autumn } from "autumn-js/better-auth";
 
 const siteUrl = process.env.SITE_URL || "";
 
@@ -79,7 +80,12 @@ export const createAuth = (
 				sendInvitationEmail: async (data) => {
 					console.log(data);
 				},
+				organizationHooks: {
+					// beforeCreateInvitation(data) {},
+					afterAcceptInvitation: async (data) => {},
+				},
 			}),
+			autumn({ customerScope: "organization" }),
 		],
 	});
 };

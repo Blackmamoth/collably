@@ -1,6 +1,7 @@
 import { createAccessControl } from "better-auth/plugins/access";
 
 const statement = {
+	organization: ["create", "update", "delete"],
 	project: ["create", "read", "update", "delete"],
 	invitation: ["create", "read", "cancel"],
 	member: ["create", "update", "delete"],
@@ -10,6 +11,7 @@ const statement = {
 export const ac = createAccessControl(statement);
 
 export const owner = ac.newRole({
+	organization: ["create", "update", "delete"],
 	project: ["create", "update", "delete"],
 	invitation: ["create", "read", "cancel"],
 	member: ["create", "update", "delete"],
@@ -17,6 +19,7 @@ export const owner = ac.newRole({
 });
 
 export const member = ac.newRole({
+	organization: ["create"],
 	project: ["create"],
 	invitation: ["create", "read"],
 	task: ["create", "update", "delete"],

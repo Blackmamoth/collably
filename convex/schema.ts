@@ -54,6 +54,7 @@ export default defineSchema({
 		updatedAt: v.number(),
 	})
 		.index("by_project", ["projectId"])
+		.index("by_project_and_type", ["projectId", "elementType"])
 		.index("by_creator", ["createdBy"]),
 	aiSummary: defineTable({
 		projectId: v.id("project"),
@@ -100,5 +101,7 @@ export default defineSchema({
 	})
 		.index("by_project", ["projectId"])
 		.index("by_creator", ["createdBy"])
-		.index("by_parent", ["parentTaskId"]),
+		.index("by_parent", ["parentTaskId"])
+		.index("by_status", ["status"])
+		.index("by_project_and_status", ["projectId", "status"]),
 });

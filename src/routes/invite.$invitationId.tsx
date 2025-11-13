@@ -40,6 +40,7 @@ import type { Invitation } from "better-auth/plugins";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { formatDateUntil } from "@/lib/common/helper";
+import { useCustomer } from "autumn-js/react";
 
 interface WorkspaceInvitation extends Invitation {
 	organizationName: string;
@@ -70,6 +71,7 @@ function RouteComponent() {
 	const [showDeclineDialog, setShowDeclineDialog] = useState(false);
 
 	const navigate = useNavigate();
+	const { track } = useCustomer();
 
 	useEffect(() => {
 		const fetchInvitationDetails = async () => {
@@ -110,6 +112,8 @@ function RouteComponent() {
 			await authClient.organization.setActive({
 				organizationId: data.invitation.organizationId,
 			});
+
+			await track({ featureId: "members", value: 1 });
 
 			navigate({ to: "/dashboard" });
 		}

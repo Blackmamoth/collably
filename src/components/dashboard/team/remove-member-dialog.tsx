@@ -11,6 +11,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 import type { WorkspaceMember } from "@/lib/common/types";
 import { useWorkspace } from "@/lib/workspace-context";
+import { useCustomer } from "autumn-js/react";
 import type { SetStateAction } from "react";
 import { toast } from "sonner";
 
@@ -26,6 +27,7 @@ export default function RemoveMemberDialog({
 	selectedMember,
 }: Props) {
 	const workspace = useWorkspace();
+	const { track } = useCustomer();
 
 	const confirmRemoveMember = async () => {
 		if (selectedMember !== null) {
@@ -41,6 +43,8 @@ export default function RemoveMemberDialog({
 							"Something went wrong! User might not have been removed",
 					);
 				}
+
+				await track({ featureId: "members", value: -1 });
 			} else {
 				toast.warning(
 					"You need to be part of an active workspace to perform this action",

@@ -50,7 +50,7 @@ import {
 	X,
 	CheckCircle,
 } from "lucide-react";
-import type { Id } from "convex/_generated/dataModel";
+import type { Doc, Id } from "convex/_generated/dataModel";
 import { api } from "convex/_generated/api";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useForm } from "@tanstack/react-form";
@@ -163,7 +163,7 @@ function RouteComponent() {
 		setIsLoading(false);
 	};
 
-	const toggleSubtask = async (task: TaskWithSubtasks) => {
+	const toggleSubtask = async (task: Doc<"task">) => {
 		await updateTaskStatus({
 			taskId: task._id,
 			projectId: project._id,
@@ -219,7 +219,10 @@ function RouteComponent() {
 				const data = {
 					...value,
 					projectId: project._id,
-					dueDate: value.dueDate === "" ? 0 : new Date(value.dueDate).getTime(),
+					dueDate:
+						value.dueDate === ""
+							? undefined
+							: new Date(value.dueDate).getTime(),
 					createdBy: currentMember.id,
 					priority: value.priority,
 				};

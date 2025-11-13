@@ -1,9 +1,15 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import {
+	createFileRoute,
+	Link,
+	redirect,
+	useNavigate,
+} from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
 	AlertDialog,
@@ -16,10 +22,48 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Upload, Trash2, CreditCard } from "lucide-react";
-import { Link } from "@tanstack/react-router";
-import { useWorkspace } from "@/lib/workspace-context";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import {
+	ArrowLeft,
+	Download,
+	ExternalLink,
+	UserCog,
+	Users,
+} from "lucide-react";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { NoWorkspacesEmpty } from "@/components/empty-states";
+import { Progress } from "@/components/ui/progress";
+import { useCustomer } from "autumn-js/react";
+import { useWorkspace } from "@/lib/workspace-context";
+import { formatDateUntil } from "@/lib/common/helper";
+import { useForm } from "@tanstack/react-form";
+import * as z from "zod";
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
+import { useMutation } from "convex/react";
+import { api } from "convex/_generated/api";
+import { ConvexError } from "convex/values";
+
+const schema = z.object({
+	workspaceName: z.string().min(1, "name is required"),
+	workspaceSlug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+		message:
+			"Slug must be a lowercase string with alphanumeric characters and hyphens",
+	}),
+});
 
 export const Route = createFileRoute("/dashboard/workspace/settings/")({
 	component: RouteComponent,
@@ -36,18 +80,84 @@ export const Route = createFileRoute("/dashboard/workspace/settings/")({
 
 function RouteComponent() {
 	const [activeTab, setActiveTab] = useState("general");
+	const [workspaceName, setWorkspaceName] = useState("Acme Inc");
+	const [workspaceSlug, setWorkspaceSlug] = useState("acme-inc");
+	const [workspaceDescription, setWorkspaceDescription] = useState(
+		"A collaborative workspace for the Acme team",
+	);
 
-	const tabs = [
-		{ id: "general", label: "General" },
-		{ id: "billing", label: "Billing" },
-		{ id: "danger", label: "Danger Zone" },
-	];
-
-	const workspace = useWorkspace();
+	const [hasWorkspace, setHasWorkspace] = useState(true); // Set to true to show content
+	const [isSaving, setIsSaving] = useState(false);
+	const [isDeleting, setIsDeleting] = useState(false);
 
 	const navigate = useNavigate();
+	const { customer, openBillingPortal } = useCustomer({ expand: ["invoices"] });
 
-	if (!workspace) {
+	const workspace = useWorkspace();
+	const deleteWorkspace = useMutation(api.workspace.deleteWorkspace);
+
+	useEffect(() => {
+		if (!workspace) {
+			setHasWorkspace(false);
+		} else {
+			setHasWorkspace(true);
+		}
+	}, [workspace]);
+
+	const form = useForm({
+		defaultValues: {
+			workspaceName: workspace?.name || "",
+			workspaceSlug: workspace?.slug || "",
+		},
+		validators: {
+			onChange: schema,
+		},
+		onSubmit: async ({ value }) => {
+			setIsSaving(true);
+			const { data, error } =
+				await authClient.organization.getActiveMemberRole();
+			if (error !== null) {
+				toast.error("Could not fetch current member's role", {
+					description: error.message || "",
+				});
+				return;
+			}
+
+			if (data.role !== "owner") {
+				toast.error("Only the owner can modify workspace details!");
+				return;
+			}
+
+			await authClient.organization.update({
+				data: { name: value.workspaceName, slug: value.workspaceSlug },
+				organizationId: workspace?.id,
+			});
+			setIsSaving(false);
+		},
+	});
+
+	const plans = {
+		free: {
+			price: "$0",
+			billingCycle: "monthly",
+		},
+		pro: {
+			price: "$12",
+			billingCycle: "monthly",
+		},
+	};
+
+	const handleManageBilling = async () => {
+		await openBillingPortal({
+			returnUrl: "http://localhost:3000/dashboard/workspace/settings",
+		});
+	};
+
+	const handleUpgrade = () => {
+		navigate({ to: "/dashboard/billing/plans" });
+	};
+
+	if (!hasWorkspace) {
 		return (
 			<div className="flex-1 flex items-center justify-center min-h-screen">
 				<NoWorkspacesEmpty
@@ -58,6 +168,27 @@ function RouteComponent() {
 			</div>
 		);
 	}
+
+	const tabs = [
+		{ id: "general", label: "General" },
+		{ id: "members", label: "Members" },
+		{ id: "billing", label: "Billing" },
+		{ id: "danger", label: "Danger Zone" },
+	];
+
+	const handleDelete = async () => {
+		setIsDeleting(true);
+		try {
+			await deleteWorkspace();
+			navigate({ to: "/dashboard" });
+		} catch (error) {
+			if (error instanceof ConvexError) {
+				toast.error(error.data);
+			}
+		} finally {
+			setIsDeleting(false);
+		}
+	};
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -70,9 +201,11 @@ function RouteComponent() {
 						</Button>
 					</Link>
 					<div>
-						<h1 className="text-xl font-semibold">Workspace Settings</h1>
-						<p className="text-sm text-muted-foreground">
-							Manage your workspace configuration
+						<h1 className="text-3xl font-bold tracking-tight">
+							Workspace Settings
+						</h1>
+						<p className="text-muted-foreground mt-2">
+							Manage your workspace settings and preferences
 						</p>
 					</div>
 				</div>
@@ -85,8 +218,8 @@ function RouteComponent() {
 						<nav className="space-y-1">
 							{tabs.map((tab) => (
 								<button
-									type="button"
 									key={tab.id}
+									type="button"
 									onClick={() => setActiveTab(tab.id)}
 									className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
 										activeTab === tab.id
@@ -101,46 +234,127 @@ function RouteComponent() {
 					</aside>
 
 					{/* Content */}
-					<div className="flex-1 max-w-3xl">
+					<div className="flex-1 max-w-3xl space-y-8">
 						{activeTab === "general" && (
+							<Card>
+								<CardHeader>
+									<CardTitle>General</CardTitle>
+									<CardDescription>
+										Update your workspace name and description
+									</CardDescription>
+								</CardHeader>
+								<form
+									onSubmit={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										form.handleSubmit();
+									}}
+								>
+									<CardContent className="space-y-4">
+										<form.Field name="workspaceName">
+											{(field) => (
+												<div className="space-y-2">
+													<Label htmlFor="workspace-name">Workspace Name</Label>
+													<Input
+														id={"workspace-name"}
+														value={field.state.value}
+														onChange={(e) => field.handleChange(e.target.value)}
+														placeholder="Enter workspace name"
+													/>
+												</div>
+											)}
+										</form.Field>
+
+										<form.Field name="workspaceSlug">
+											{(field) => (
+												<div className="space-y-2">
+													<Label htmlFor="workspace-slug">Workspace URL</Label>
+													<div className="flex items-center gap-2">
+														<span className="text-sm text-muted-foreground">
+															taskloom.app/
+														</span>
+														<Input
+															id={"workspace-slug"}
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+															placeholder="workspace-url"
+															className="flex-1"
+														/>
+													</div>
+													<p className="text-xs text-muted-foreground">
+														This is your workspace's URL-friendly identifier
+													</p>
+												</div>
+											)}
+										</form.Field>
+
+										<div className="flex justify-end">
+											<Button type="submit" disabled={isSaving}>
+												{isSaving ? "Saving..." : "Save Changes"}
+											</Button>
+										</div>
+									</CardContent>
+								</form>
+							</Card>
+						)}
+
+						{activeTab === "members" && (
 							<div className="space-y-6">
-								<div>
-									<h2 className="text-lg font-semibold mb-1">General</h2>
-									<p className="text-sm text-muted-foreground">
-										Update your workspace name and branding
-									</p>
+								<div className="flex items-center justify-between">
+									<div>
+										<h2 className="text-lg font-semibold mb-1">Members</h2>
+										<p className="text-sm text-muted-foreground">
+											Manage who has access to this workspace
+										</p>
+									</div>
+									<Button onClick={() => navigate({ to: "/dashboard/team" })}>
+										<Users className="w-4 h-4 mr-2" />
+										Manage members
+									</Button>
 								</div>
 
 								<Separator />
 
-								<div className="space-y-4">
-									<div className="flex items-center gap-6">
-										<div className="w-20 h-20 rounded-lg bg-primary flex items-center justify-center text-2xl font-bold text-primary-foreground">
-											{workspace.name.split(" ").map((c) => c[0].toUpperCase())}
-										</div>
-										<div className="space-y-2">
-											<Button variant="outline" size="sm">
-												<Upload className="w-4 h-4 mr-2" />
-												Upload icon
-											</Button>
-											<p className="text-xs text-muted-foreground">
-												PNG or SVG. Max size 1MB.
-											</p>
-										</div>
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="workspace-name">Workspace name</Label>
-										<Input
-											id={"workspace-name"}
-											defaultValue={workspace.name}
-										/>
-									</div>
-
-									<div className="pt-4">
-										<Button>Save changes</Button>
-									</div>
-								</div>
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>Member</TableHead>
+											<TableHead>Role</TableHead>
+											<TableHead className="w-[100px]"></TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{workspace?.members?.map((member) => (
+											<TableRow key={member.id}>
+												<TableCell>
+													<div className="flex items-center gap-3">
+														<Avatar className="w-8 h-8">
+															<AvatarImage
+																src={member.user.image || "/placeholder.svg"}
+															/>
+															<AvatarFallback>
+																{member.user.name[0]}
+															</AvatarFallback>
+														</Avatar>
+														<div>
+															<p className="font-medium text-sm">
+																{member.user.name}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{member.user.email}
+															</p>
+														</div>
+													</div>
+												</TableCell>
+												<TableCell>
+													<Badge variant="secondary">{member.role}</Badge>
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
 							</div>
 						)}
 
@@ -155,102 +369,206 @@ function RouteComponent() {
 
 								<Separator />
 
-								<div className="space-y-6">
-									<div className="p-6 border border-border rounded-lg">
-										<div className="flex items-start justify-between mb-4">
+								<Card>
+									<CardHeader>
+										<CardTitle>Current Subscription</CardTitle>
+										<CardDescription>
+											Your current plan and billing details
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-6">
+										<div className="flex items-start justify-between">
 											<div>
-												<h3 className="font-semibold mb-1">Pro Plan</h3>
-												<p className="text-sm text-muted-foreground">
-													$12/month · Billed monthly
+												<div className="flex items-center gap-2 mb-1">
+													<h3 className="font-semibold text-lg">
+														{customer?.products[0].name} Plan
+													</h3>
+													<Badge
+														variant={
+															customer?.products[0].status === "active"
+																? "default"
+																: "secondary"
+														}
+													>
+														{customer?.products[0]?.status}
+													</Badge>
+												</div>
+												<p className="text-sm text-muted-foreground mb-2">
+													{plans[customer?.products[0].id].price} / month
 												</p>
-											</div>
-											<Badge>Active</Badge>
-										</div>
-										<div className="flex gap-2">
-											<Button variant="outline">Change plan</Button>
-											<Button variant="outline">Cancel subscription</Button>
-										</div>
-									</div>
-
-									<div>
-										<h3 className="font-semibold mb-4">Payment method</h3>
-										<div className="p-4 border border-border rounded-lg flex items-center justify-between">
-											<div className="flex items-center gap-3">
-												<div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-													<CreditCard className="w-5 h-5" />
-												</div>
-												<div>
-													<p className="font-medium text-sm">
-														•••• •••• •••• 4242
-													</p>
+												{customer?.products[0].current_period_end && (
 													<p className="text-xs text-muted-foreground">
-														Expires 12/25
+														{`Next billing date: ${new Date(customer?.products[0].current_period_end).toLocaleDateString()}`}
 													</p>
-												</div>
+												)}
 											</div>
-											<Button variant="outline" size="sm">
-												Update
-											</Button>
+											<div className="flex gap-2">
+												<Button variant="outline" onClick={handleUpgrade}>
+													Change plan
+												</Button>
+												<Button variant="outline" onClick={handleManageBilling}>
+													<ExternalLink className="w-4 h-4 mr-2" />
+													Manage
+												</Button>
+											</div>
 										</div>
-									</div>
-								</div>
+									</CardContent>
+								</Card>
+
+								<Card>
+									<CardHeader>
+										<CardTitle>Usage</CardTitle>
+										<CardDescription>
+											Your current usage across workspace limits
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-6">
+										{Object.keys(customer?.features || {}).map((key) => {
+											const feature = customer?.features[key];
+											if (!feature) return null;
+
+											// Handle unlimited features
+											if (feature.unlimited) {
+												return (
+													<div className="space-y-2" key={feature.id || key}>
+														<div className="flex items-center justify-between text-sm mb-1">
+															<span className="font-medium">
+																{feature.name || key}
+															</span>
+															<span className="text-muted-foreground">
+																Unlimited{" "}
+																{feature.usage ? `(${feature.usage} used)` : ""}
+															</span>
+														</div>
+													</div>
+												);
+											}
+
+											// Handle features with limits
+											const balance = feature.balance ?? 0;
+											const limit = feature.included_usage ?? 0;
+											const usage = feature.usage ?? 0;
+
+											// Calculate percentage used (not remaining)
+											const percentage = limit > 0 ? (usage / limit) * 100 : 0;
+
+											return (
+												<div className="space-y-2" key={feature.id || key}>
+													<div className="flex items-center justify-between text-sm mb-1">
+														<span className="font-medium">
+															{feature.name || key}
+														</span>
+														<span className="text-muted-foreground">
+															{balance} remaining / {limit} total
+														</span>
+													</div>
+													<Progress value={percentage} />
+												</div>
+											);
+										})}
+									</CardContent>
+								</Card>
+
+								<Card>
+									<CardHeader>
+										<CardTitle>Billing History</CardTitle>
+										<CardDescription>
+											Your past invoices and payments
+										</CardDescription>
+									</CardHeader>
+									<CardContent>
+										<Table>
+											<TableHeader>
+												<TableRow>
+													<TableHead>Date</TableHead>
+													<TableHead>Amount</TableHead>
+													<TableHead>Status</TableHead>
+													<TableHead className="w-[100px]"></TableHead>
+												</TableRow>
+											</TableHeader>
+											<TableBody>
+												{customer?.invoices?.map((invoice) => (
+													<TableRow key={invoice.stripe_id}>
+														<TableCell className="text-sm">
+															{new Date(
+																invoice.created_at,
+															).toLocaleDateString()}
+														</TableCell>
+														<TableCell className="text-sm font-medium">
+															${invoice.total}
+														</TableCell>
+														<TableCell>
+															<Badge
+																variant={
+																	invoice.status === "paid"
+																		? "default"
+																		: "secondary"
+																}
+																className="capitalize"
+															>
+																{invoice.status}
+															</Badge>
+														</TableCell>
+														<TableCell>
+															<Button variant="ghost" size="icon" asChild>
+																<a
+																	href={invoice.hosted_invoice_url}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																>
+																	<Download className="w-4 h-4" />
+																</a>
+															</Button>
+														</TableCell>
+													</TableRow>
+												))}
+											</TableBody>
+										</Table>
+									</CardContent>
+								</Card>
 							</div>
 						)}
 
 						{activeTab === "danger" && (
-							<div className="space-y-6">
-								<div>
-									<h2 className="text-lg font-semibold mb-1">Danger Zone</h2>
-									<p className="text-sm text-muted-foreground">
-										Irreversible actions for this workspace
-									</p>
-								</div>
-
-								<Separator />
-
-								<div className="space-y-4">
-									<div className="p-4 border border-destructive/50 rounded-lg">
-										<div className="flex items-start justify-between">
-											<div className="flex-1">
-												<h3 className="font-semibold mb-1 text-destructive">
-													Delete workspace
-												</h3>
-												<p className="text-sm text-muted-foreground">
-													Once you delete a workspace, there is no going back.
-													All projects, boards, and data will be permanently
-													deleted.
-												</p>
-											</div>
-											<AlertDialog>
-												<AlertDialogTrigger asChild>
-													<Button variant="destructive" className="ml-4">
-														<Trash2 className="w-4 h-4 mr-2" />
-														Delete
-													</Button>
-												</AlertDialogTrigger>
-												<AlertDialogContent>
-													<AlertDialogHeader>
-														<AlertDialogTitle>
-															Are you absolutely sure?
-														</AlertDialogTitle>
-														<AlertDialogDescription>
-															This action cannot be undone. This will
-															permanently delete your workspace and remove all
-															associated data from our servers.
-														</AlertDialogDescription>
-													</AlertDialogHeader>
-													<AlertDialogFooter>
-														<AlertDialogCancel>Cancel</AlertDialogCancel>
-														<AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-															Delete workspace
-														</AlertDialogAction>
-													</AlertDialogFooter>
-												</AlertDialogContent>
-											</AlertDialog>
-										</div>
-									</div>
-								</div>
-							</div>
+							<Card className="border-destructive">
+								<CardHeader>
+									<CardTitle className="text-destructive">
+										Danger Zone
+									</CardTitle>
+									<CardDescription>
+										Irreversible actions that affect your workspace
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									<AlertDialog>
+										<AlertDialogTrigger asChild>
+											<Button variant="destructive">Delete Workspace</Button>
+										</AlertDialogTrigger>
+										<AlertDialogContent>
+											<AlertDialogHeader>
+												<AlertDialogTitle>
+													Are you absolutely sure?
+												</AlertDialogTitle>
+												<AlertDialogDescription>
+													This action cannot be undone. This will permanently
+													delete your workspace and remove all associated data
+													including projects, boards, and team members.
+												</AlertDialogDescription>
+											</AlertDialogHeader>
+											<AlertDialogFooter>
+												<AlertDialogCancel>Cancel</AlertDialogCancel>
+												<AlertDialogAction
+													onClick={handleDelete}
+													className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+													disabled={isDeleting}
+												>
+													{isDeleting ? "Deleting..." : "Delete Workspace"}
+												</AlertDialogAction>
+											</AlertDialogFooter>
+										</AlertDialogContent>
+									</AlertDialog>
+								</CardContent>
+							</Card>
 						)}
 					</div>
 				</div>

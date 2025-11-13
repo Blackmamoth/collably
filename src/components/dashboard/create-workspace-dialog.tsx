@@ -7,7 +7,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useState, type SetStateAction } from "react";
+import type { SetStateAction } from "react";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import * as z from "zod";

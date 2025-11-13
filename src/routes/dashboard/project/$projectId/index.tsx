@@ -61,40 +61,9 @@ function RouteComponent() {
 
 	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers);
 
-	// Mock data
-	// const project = {
-	// 	id: params.projectId,
-	// 	name: "Product Roadmap Q1",
-	// 	description: "Planning and brainstorming for Q1 product initiatives",
-	// 	members: [
-	// 		{
-	// 			name: "Alice",
-	// 			avatar: "/placeholder.svg?height=32&width=32",
-	// 			role: "Owner",
-	// 		},
-	// 		{
-	// 			name: "Bob",
-	// 			avatar: "/placeholder.svg?height=32&width=32",
-	// 			role: "Member",
-	// 		},
-	// 		{
-	// 			name: "Charlie",
-	// 			avatar: "/placeholder.svg?height=32&width=32",
-	// 			role: "Member",
-	// 		},
-	// 	],
-	// 	stats: {
-	// 		notes: 12,
-	// 		tasks: 8,
-	// 		completed: 3,
-	// 		inProgress: 5,
-	// 	},
-	// 	recentActivity: [
-	// 		{ user: "Alice", action: "added a note", time: "2 hours ago" },
-	// 		{ user: "Bob", action: "completed a task", time: "5 hours ago" },
-	// 		{ user: "Charlie", action: "moved a task", time: "1 day ago" },
-	// 	],
-	// };
+	const projectStats = useQuery(api.project.getProjectStats, {
+		projectId: project._id,
+	});
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -182,7 +151,7 @@ function RouteComponent() {
 											<Layers className="w-6 h-6 text-primary" />
 										</div>
 										<Badge variant="secondary">
-											{/*{project.stats.notes} notes*/}
+											{projectStats?.total_notes || 0} notes
 										</Badge>
 									</div>
 									<h3 className="text-lg font-semibold mb-2">Decision Board</h3>
@@ -202,7 +171,7 @@ function RouteComponent() {
 											<Kanban className="w-6 h-6 text-primary" />
 										</div>
 										<Badge variant="secondary">
-											{/*{project.stats.tasks} tasks*/}
+											{projectStats?.total_tasks || 0} tasks
 										</Badge>
 									</div>
 									<h3 className="text-lg font-semibold mb-2">Task Board</h3>
@@ -224,7 +193,9 @@ function RouteComponent() {
 										<Layers className="w-5 h-5 text-blue-500" />
 									</div>
 									<div>
-										{/*<p className="text-2xl font-bold">{project.stats.notes}</p>*/}
+										<p className="text-2xl font-bold">
+											{projectStats?.total_notes || 0}
+										</p>
 										<p className="text-xs text-muted-foreground">Total Notes</p>
 									</div>
 								</div>
@@ -236,7 +207,9 @@ function RouteComponent() {
 										<Kanban className="w-5 h-5 text-purple-500" />
 									</div>
 									<div>
-										{/*<p className="text-2xl font-bold">{project.stats.tasks}</p>*/}
+										<p className="text-2xl font-bold">
+											{projectStats?.total_tasks || 0}
+										</p>
 										<p className="text-xs text-muted-foreground">Total Tasks</p>
 									</div>
 								</div>
@@ -249,7 +222,7 @@ function RouteComponent() {
 									</div>
 									<div>
 										<p className="text-2xl font-bold">
-											{/*{project.stats.completed}*/}
+											{projectStats?.total_completed_tasks || 0}
 										</p>
 										<p className="text-xs text-muted-foreground">Completed</p>
 									</div>
@@ -263,7 +236,7 @@ function RouteComponent() {
 									</div>
 									<div>
 										<p className="text-2xl font-bold">
-											{/*{project.stats.inProgress}*/}
+											{projectStats?.total_pending_tasks || 0}
 										</p>
 										<p className="text-xs text-muted-foreground">In Progress</p>
 									</div>

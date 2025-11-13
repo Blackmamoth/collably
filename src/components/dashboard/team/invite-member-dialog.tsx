@@ -20,6 +20,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 import type { Workspace } from "@/lib/common/types";
 import { useForm } from "@tanstack/react-form";
+import { useCustomer } from "autumn-js/react";
 import { Mail, UserPlus } from "lucide-react";
 import type { SetStateAction } from "react";
 import { toast } from "sonner";
@@ -41,16 +42,27 @@ export default function InviteMemberDialog({
 	setIsInviteOpen,
 	workspace,
 }: Props) {
+	const { check, track } = useCustomer();
+
 	const form = useForm({
 		defaultValues: {
 			email: "",
-			role: "member",
+			role: "member" as "owner" | "member" | "viewer",
 		},
 		validators: {
 			onChange: schema,
 		},
 		onSubmit: async ({ value }) => {
 			if (workspace !== null) {
+				const data = await check({ featureId: "members" });
+
+				if (!data.data.allowed) {
+					toast.error(
+						"You have reached the maximum number of members you can invite.",
+					);
+					return;
+				}
+
 				const { error } = await authClient.organization.inviteMember({
 					email: value.email,
 					role: value.role,

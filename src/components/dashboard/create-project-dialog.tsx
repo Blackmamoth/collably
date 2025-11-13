@@ -1,4 +1,4 @@
-import type { SetStateAction } from "react";
+import { useState, type SetStateAction } from "react";
 import { Button } from "../ui/button";
 import {
 	Dialog,
@@ -10,13 +10,14 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { api } from "convex/_generated/api";
 import { useForm } from "@tanstack/react-form";
 import * as z from "zod";
 import { Textarea } from "../ui/textarea";
 import { toast } from "sonner";
 import { useWorkspace } from "@/lib/workspace-context";
+import { ConvexError } from "convex/values";
 
 interface Props {
 	isCreateProjectOpen: boolean;
@@ -32,7 +33,9 @@ export default function CreateProjectDialog({
 	isCreateProjectOpen,
 	setIsCreateProjectOpen,
 }: Props) {
-	const createProject = useMutation(api.project.createProject);
+	const [isCreating, setIsCreating] = useState(false);
+
+	const createProject = useAction(api.project.createProject);
 
 	const activeWorkspace = useWorkspace();
 
@@ -45,19 +48,28 @@ export default function CreateProjectDialog({
 			onChange: schema,
 		},
 		onSubmit: async ({ value }) => {
-			if (!activeWorkspace) {
-				toast.warning(
-					"You need to select a workspace before creating a project",
-				);
-				return;
+			setIsCreating(true);
+			try {
+				if (!activeWorkspace) {
+					toast.warning(
+						"You need to select a workspace before creating a project",
+					);
+					return;
+				}
+				await createProject({
+					name: value.name,
+					workspaceId: activeWorkspace.id,
+					description: value.description,
+				});
+			} catch (error) {
+				if (error instanceof ConvexError) {
+					toast.error(error.data);
+				}
+			} finally {
+				setIsCreateProjectOpen(false);
+				form.reset();
+				setIsCreating(false);
 			}
-			await createProject({
-				name: value.name,
-				workspaceId: activeWorkspace.id,
-				description: value.description,
-			});
-			setIsCreateProjectOpen(false);
-			form.reset();
 		},
 	});
 
@@ -112,12 +124,15 @@ export default function CreateProjectDialog({
 					</form.Field>
 					<DialogFooter>
 						<Button
+							disabled={isCreating}
 							variant="outline"
 							onClick={() => setIsCreateProjectOpen(false)}
 						>
 							Cancel
 						</Button>
-						<Button type="submit">Create Project</Button>
+						<Button disabled={isCreating} type="submit">
+							Create Project
+						</Button>
 					</DialogFooter>
 				</form>
 			</DialogContent>
