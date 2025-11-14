@@ -35,32 +35,21 @@ import DecisionBoardComments from "@/components/dashboard/decision-board/comment
 import ResizeHandles from "@/components/dashboard/decision-board/resize-handles";
 import { getColorClasses } from "@/lib/common/colors";
 
-// Throttle utility to limit how often a function runs
-function throttle<T extends (...args: any[]) => any>(
+// Debounce utility to delay execution until activity settles
+function debounce<T extends (...args: any[]) => any>(
 	func: T,
 	wait: number,
 ): (...args: Parameters<T>) => void {
 	let timeout: NodeJS.Timeout | null = null;
-	let previous = 0;
 
-	return function executedFunction(...args: Parameters<T>) {
-		const now = Date.now();
-		const remaining = wait - (now - previous);
-
-		if (remaining <= 0 || remaining > wait) {
-			if (timeout) {
-				clearTimeout(timeout);
-				timeout = null;
-			}
-			previous = now;
-			func(...args);
-		} else if (!timeout) {
-			timeout = setTimeout(() => {
-				previous = Date.now();
-				timeout = null;
-				func(...args);
-			}, remaining);
+	return function debouncedFunction(...args: Parameters<T>) {
+		if (timeout) {
+			clearTimeout(timeout);
 		}
+		timeout = setTimeout(() => {
+			timeout = null;
+			func(...args);
+		}, wait);
 	};
 }
 
@@ -172,10 +161,29 @@ function RouteComponent() {
 	);
 
 	useEffect(() => {
-		// Only sync server if we're not editing anything
-		if (!editingElement) {
-			setLocalElements(elements);
-		}
+		setLocalElements((prev) => {
+			const prevById = new Map(prev.map((el) => [el._id, el]));
+			const serverById = new Map(elements.map((el) => [el._id, el]));
+
+			const merged = elements.map((serverEl) => {
+				if (editingElement && serverEl._id === editingElement) {
+					return prevById.get(serverEl._id) ?? serverEl;
+				}
+				return serverEl;
+			});
+
+			prev.forEach((localEl) => {
+				const existsOnServer = serverById.has(localEl._id);
+				const isEditing = editingElement === localEl._id;
+				const hasTempId = String(localEl._id).startsWith("temp-id-");
+
+				if (!existsOnServer && (isEditing || hasTempId)) {
+					merged.push(localEl);
+				}
+			});
+
+			return merged;
+		});
 	}, [elements, editingElement]);
 
 	// // Convert Convex DB shape → current UI element shape
@@ -196,14 +204,14 @@ function RouteComponent() {
 	type UpdateElementArgs = Parameters<typeof updateElement>[0];
 	type Patch = UpdateElementArgs["patch"];
 
-	const throttledElementUpdate = useMemo(() => {
-		return throttle(async (id: Id<"element">, patch: Patch) => {
+	const debouncedElementUpdate = useMemo(() => {
+		return debounce(async (id: Id<"element">, patch: Patch) => {
 			await updateElement({
 				projectId: params.projectId as Id<"project">,
 				id,
 				patch,
 			});
-		}, 80);
+		}, 250);
 	}, [updateElement, params.projectId]);
 
 	const screenToCanvas = (screenX: number, screenY: number) => {
@@ -265,7 +273,7 @@ function RouteComponent() {
 					fontSize: 16,
 					fontWeight: "normal",
 					color: "#ffffff",
-					createdBy: user.id,
+					createdBy: creatorId,
 					votes: 0,
 				};
 
@@ -312,7 +320,7 @@ function RouteComponent() {
 					fontSize: 16,
 					fontWeight: "normal",
 					color: "#ffffff",
-					createdBy: user.id,
+					createdBy: creatorId,
 					votes: 0,
 				};
 
@@ -386,7 +394,7 @@ function RouteComponent() {
 
 	const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
 		const canvasPos = screenToCanvas(e.clientX, e.clientY);
-		throttledUpdatePresence(canvasPos.x, canvasPos.y);
+		debouncedUpdatePresence(canvasPos.x, canvasPos.y);
 
 		if (isPanning) {
 			const dx = e.clientX - lastPanPoint.x;
@@ -421,7 +429,7 @@ function RouteComponent() {
 				y = startElementPos.y + (startSize.height - height);
 			}
 
-			throttledElementUpdate(id, { x, y, width, height });
+			debouncedElementUpdate(id, { x, y, width, height });
 			return;
 		}
 
@@ -469,7 +477,7 @@ function RouteComponent() {
 					),
 				);
 
-				throttledElementUpdate(draggedEl._id, {
+				debouncedElementUpdate(draggedEl._id, {
 					x: newX,
 					y: newY,
 					votes: draggedEl.votes,
@@ -531,7 +539,7 @@ function RouteComponent() {
 						endY: canvasPos.y,
 						strokeColor: "#ffffff",
 						strokeWidth: 2,
-						createdBy: user.id,
+						createdBy: creatorId,
 						votes: 0,
 					};
 
@@ -580,7 +588,7 @@ function RouteComponent() {
 						fillColor: "transparent",
 						strokeColor: "#ffffff",
 						strokeWidth: 2,
-						createdBy: user.id,
+						createdBy: creatorId,
 						votes: 0,
 					};
 
@@ -681,7 +689,7 @@ function RouteComponent() {
 		elementId: Id<"element">,
 		newContent: string,
 	) => {
-		// throttledElementUpdate(elementId, { content: newContent });
+		// debouncedElementUpdate(elementId, { content: newContent });
 		setLocalElements((prev) =>
 			prev.map((el) =>
 				el._id === elementId ? { ...el, content: newContent } : el,
@@ -1011,14 +1019,15 @@ function RouteComponent() {
 			workspaceMembers?.members?.find((m) => m.user.id === user.id) || null
 		);
 	}, [workspaceMembers, user.id]);
+	const creatorId = currentMember?.id ?? user.id;
 
 	// Presence mutators
 	const updatePresence = useMutation(api.presence.updatePresence);
 	const removePresence = useMutation(api.presence.removePresence);
 
-	// Stable throttled presence update
-	const throttledUpdatePresence = useMemo(() => {
-		return throttle(async (cursorX: number, cursorY: number) => {
+	// Stable debounced presence update
+	const debouncedUpdatePresence = useMemo(() => {
+		return debounce(async (cursorX: number, cursorY: number) => {
 			if (!currentMember) return;
 
 			await updatePresence({
@@ -1026,7 +1035,7 @@ function RouteComponent() {
 				cursorX,
 				cursorY,
 			});
-		}, 100);
+		}, 250);
 	}, [currentMember, params.projectId, updatePresence]);
 
 	// Live Cursors excluding yourself
