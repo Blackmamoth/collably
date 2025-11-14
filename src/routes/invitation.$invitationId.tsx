@@ -48,7 +48,7 @@ interface WorkspaceInvitation extends Invitation {
 	inviterEmail: string;
 }
 
-export const Route = createFileRoute("/invite/$invitationId")({
+export const Route = createFileRoute("/invitation/$invitationId")({
 	component: RouteComponent,
 	beforeLoad: ({ context }) => {
 		const { user } = context;
@@ -65,7 +65,7 @@ function RouteComponent() {
 	const { invitationId } = useParams({ from: Route.id });
 	const [invitation, setInvitation] = useState<WorkspaceInvitation | null>(
 		null,
-	);
+	)
 	const [isLoading, setIsLoading] = useState(true);
 	const [isAccepting, setIsAccepting] = useState(false);
 	const [showDeclineDialog, setShowDeclineDialog] = useState(false);
@@ -79,17 +79,17 @@ function RouteComponent() {
 				query: {
 					id: invitationId,
 				},
-			});
+			})
 
 			if (error !== null || data === null) {
 				setInvitation(null);
 				setIsLoading(false);
-				return;
+				return
 			}
 
 			setInvitation(data);
 			setIsLoading(false);
-		};
+		}
 
 		fetchInvitationDetails();
 	}, [invitationId]);
@@ -99,19 +99,19 @@ function RouteComponent() {
 
 		const { data, error } = await authClient.organization.acceptInvitation({
 			invitationId,
-		});
+		})
 
 		if (error !== null || data === null) {
 			toast.error(
 				error.message ||
 					"An error occured while accepting the invitation, please try again!",
-			);
+			)
 		} else {
 			toast.success("Welcome to your new workspace!");
 
 			await authClient.organization.setActive({
 				organizationId: data.invitation.organizationId,
-			});
+			})
 
 			await track({ featureId: "members", value: 1 });
 
@@ -119,20 +119,20 @@ function RouteComponent() {
 		}
 
 		setIsAccepting(false);
-	};
+	}
 
 	const handleDecline = async () => {
 		setIsAccepting(true);
 
 		const { data, error } = await authClient.organization.rejectInvitation({
 			invitationId,
-		});
+		})
 
 		if (error !== null || data === null) {
 			toast.error(
 				error.message ||
 					"An error occured while accepting the invitation, please try again!",
-			);
+			)
 		} else {
 			toast.info("You've declined the invitation from this workspace!");
 
@@ -140,7 +140,7 @@ function RouteComponent() {
 		}
 
 		setIsAccepting(false);
-	};
+	}
 
 	const getRoleDescription = (role: string) => {
 		switch (role) {
@@ -151,9 +151,9 @@ function RouteComponent() {
 			case "member":
 				return "Can view and edit projects";
 			default:
-				return "";
+				return ""
 		}
-	};
+	}
 
 	if (isLoading) {
 		return (
@@ -176,7 +176,7 @@ function RouteComponent() {
 					</CardContent>
 				</Card>
 			</div>
-		);
+		)
 	}
 
 	if (!invitation) {
@@ -198,7 +198,7 @@ function RouteComponent() {
 					</CardContent>
 				</Card>
 			</div>
-		);
+		)
 	}
 
 	if (new Date() > invitation.expiresAt) {
@@ -220,7 +220,7 @@ function RouteComponent() {
 					</CardContent>
 				</Card>
 			</div>
-		);
+		)
 	}
 
 	if (invitation.status === "accepted") {
@@ -241,7 +241,7 @@ function RouteComponent() {
 					</CardContent>
 				</Card>
 			</div>
-		);
+		)
 	}
 
 	if (invitation.status === "rejected") {
@@ -263,7 +263,7 @@ function RouteComponent() {
 					</CardContent>
 				</Card>
 			</div>
-		);
+		)
 	}
 
 	return (
@@ -392,5 +392,5 @@ function RouteComponent() {
 				</AlertDialogContent>
 			</AlertDialog>
 		</div>
-	);
+	)
 }

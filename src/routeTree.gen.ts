@@ -15,7 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as InviteInvitationIdRouteImport } from './routes/invite.$invitationId'
+import { Route as InvitationInvitationIdRouteImport } fr./routes/invitation.$invitationId.tsxtationId'
 import { Route as EmailVerifyOtpRouteImport } from './routes/email.verify-otp'
 import { Route as DashboardTeamRouteImport } from './routes/dashboard/team'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
@@ -57,9 +57,9 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/dashboard/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const InviteInvitationIdRoute = InviteInvitationIdRouteImport.update({
-  id: '/invite/$invitationId',
-  path: '/invite/$invitationId',
+const InvitationInvitationIdRoute = InvitationInvitationIdRouteImport.update({
+  id: '/invitation/$invitationId',
+  path: '/invitation/$invitationId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmailVerifyOtpRoute = EmailVerifyOtpRouteImport.update({
@@ -127,7 +127,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/email/verify-otp': typeof EmailVerifyOtpRoute
-  '/invite/$invitationId': typeof InviteInvitationIdRoute
+  '/invitation/$invitationId': typeof InvitationInvitationIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/billing/plans': typeof DashboardBillingPlansRoute
@@ -146,7 +146,7 @@ export interface FileRoutesByTo {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/email/verify-otp': typeof EmailVerifyOtpRoute
-  '/invite/$invitationId': typeof InviteInvitationIdRoute
+  '/invitation/$invitationId': typeof InvitationInvitationIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/billing/plans': typeof DashboardBillingPlansRoute
@@ -166,7 +166,7 @@ export interface FileRoutesById {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/team': typeof DashboardTeamRoute
   '/email/verify-otp': typeof EmailVerifyOtpRoute
-  '/invite/$invitationId': typeof InviteInvitationIdRoute
+  '/invitation/$invitationId': typeof InvitationInvitationIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/billing/plans': typeof DashboardBillingPlansRoute
@@ -187,7 +187,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/dashboard/team'
     | '/email/verify-otp'
-    | '/invite/$invitationId'
+    | '/invitation/$invitationId'
     | '/dashboard'
     | '/api/auth/$'
     | '/dashboard/billing/plans'
@@ -206,7 +206,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/dashboard/team'
     | '/email/verify-otp'
-    | '/invite/$invitationId'
+    | '/invitation/$invitationId'
     | '/dashboard'
     | '/api/auth/$'
     | '/dashboard/billing/plans'
@@ -225,7 +225,7 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/dashboard/team'
     | '/email/verify-otp'
-    | '/invite/$invitationId'
+    | '/invitation/$invitationId'
     | '/dashboard/'
     | '/api/auth/$'
     | '/dashboard/billing/plans'
@@ -245,7 +245,7 @@ export interface RootRouteChildren {
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardTeamRoute: typeof DashboardTeamRoute
   EmailVerifyOtpRoute: typeof EmailVerifyOtpRoute
-  InviteInvitationIdRoute: typeof InviteInvitationIdRoute
+  InvitationInvitationIdRoute: typeof InvitationInvitationIdRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   DashboardBillingPlansRoute: typeof DashboardBillingPlansRoute
@@ -300,11 +300,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/invite/$invitationId': {
-      id: '/invite/$invitationId'
-      path: '/invite/$invitationId'
-      fullPath: '/invite/$invitationId'
-      preLoaderRoute: typeof InviteInvitationIdRouteImport
+    '/invitation/$invitationId': {
+      id: '/invitation/$invitationId'
+      path: '/invitation/$invitationId'
+      fullPath: '/invitation/$invitationId'
+      preLoaderRoute: typeof InvitationInvitationIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/email/verify-otp': {
@@ -389,7 +389,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardTeamRoute: DashboardTeamRoute,
   EmailVerifyOtpRoute: EmailVerifyOtpRoute,
-  InviteInvitationIdRoute: InviteInvitationIdRoute,
+  InvitationInvitationIdRoute: InvitationInvitationIdRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   DashboardBillingPlansRoute: DashboardBillingPlansRoute,

@@ -15,6 +15,7 @@ import { useForm } from "@tanstack/react-form";
 import * as z from "zod";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { handleSocialLogin } from "@/lib/common/helper";
 
 const loginSchema = z.object({
 	email: z.email({ message: "please provide a valid email address" }),
@@ -181,11 +182,19 @@ function LoginComponent() {
 					</div>
 
 					<div className="grid grid-cols-2 gap-3">
-						<Button variant="outline" className="h-10 bg-transparent">
+						<Button
+							variant="outline"
+							className="h-10 bg-transparent"
+							onClick={() => handleSocialLogin("google")}
+						>
 							<RiGoogleFill className="w-4 h-4" />
 							Google
 						</Button>
-						<Button variant="outline" className="h-10 bg-transparent">
+						<Button
+							variant="outline"
+							className="h-10 bg-transparent"
+							onClick={() => handleSocialLogin("github")}
+						>
 							<RiGithubLine className="w-4 h-4" />
 							GitHub
 						</Button>

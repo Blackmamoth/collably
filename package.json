@@ -16,6 +16,7 @@
     "@ai-sdk/openai": "^2.0.65",
     "@convex-dev/better-auth": "^0.9.7",
     "@convex-dev/react-query": "0.0.0-alpha.11",
+    "@convex-dev/resend": "^0.1.13",
     "@fontsource/geist-mono": "^5.2.7",
     "@fontsource/geist-sans": "^5.2.5",
     "@radix-ui/react-alert-dialog": "^1.1.15",
