@@ -149,7 +149,7 @@ function RouteComponent() {
 
 	const handleManageBilling = async () => {
 		await openBillingPortal({
-			returnUrl: "http://localhost:3000/dashboard/workspace/settings",
+			returnUrl: `${process.env.VITE_APP_HOST}/dashboard/workspace/settings`,
 		});
 	};
 

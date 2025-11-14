@@ -100,7 +100,7 @@ export const saveTask = internalMutation({
 
 		const now = Date.now();
 
-		return await ctx.db.insert("task", {
+		const taskId = await ctx.db.insert("task", {
 			projectId: args.projectId,
 			parentTaskId: args.parentTaskId,
 			title: args.title,
@@ -114,6 +114,16 @@ export const saveTask = internalMutation({
 			createdAt: now,
 			updatedAt: now,
 		});
+
+		await ctx.db.insert("activityLog", {
+			action: "task_created",
+			memberId: member.id,
+			projectId: args.projectId,
+			workspaceId: member.organizationId,
+			taskId: taskId,
+		});
+
+		return taskId;
 	},
 });
 
@@ -337,6 +347,20 @@ export const updateTaskStatus = mutation({
 		}
 
 		await ctx.db.patch(args.taskId, { status: args.newStatus });
+
+		await ctx.db.insert("activityLog", {
+			action:
+				args.newStatus === "done"
+					? "task_completed"
+					: (task.status === "done" && args.newStatus === "inprogress") ||
+							args.newStatus === "todo"
+						? "task_reopened"
+						: "task_moved",
+			memberId: member.id,
+			projectId: args.projectId,
+			workspaceId: member.organizationId,
+			taskId: task._id,
+		});
 	},
 });
 

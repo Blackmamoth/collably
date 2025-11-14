@@ -187,8 +187,7 @@ function RouteComponent() {
 											await attach({
 												productId: plan.id,
 												dialog: CheckoutDialog,
-												successUrl:
-													"http://localhost:3000/dashboard/workspace/settings",
+												successUrl: `${process.env.VITE_APP_HOST}/dashboard/workspace/settings`,
 											});
 										}}
 									>

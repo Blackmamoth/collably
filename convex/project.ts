@@ -56,7 +56,7 @@ export const createNewProject = internalMutation({
 		description: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		return await ctx.db.insert("project", {
+		const projectId = await ctx.db.insert("project", {
 			name: args.name,
 			workspaceId: args.workspaceId,
 			description: args.description,
@@ -64,6 +64,15 @@ export const createNewProject = internalMutation({
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		});
+
+		await ctx.db.insert("activityLog", {
+			action: "project_created",
+			memberId: args.userId,
+			projectId: projectId,
+			workspaceId: args.workspaceId,
+		});
+
+		return projectId;
 	},
 });
 
@@ -143,6 +152,13 @@ export const updateProject = mutation({
 			name: args.name,
 			description: args.description,
 		});
+
+		await ctx.db.insert("activityLog", {
+			action: "project_updated",
+			memberId: member.id,
+			projectId: args.projectId,
+			workspaceId: member.organizationId,
+		});
 	},
 });
 
@@ -220,7 +236,11 @@ export const deleteProject = action({
 			);
 		}
 
-		await ctx.runMutation(internal.project.deleteProjectFromDB, { projectId });
+		await ctx.runMutation(internal.project.deleteProjectFromDB, {
+			workspaceId: member.organizationId,
+			projectId,
+			memberId: member.id,
+		});
 
 		await auth.api.track({
 			body: { featureId: "projects", value: -1 },
@@ -230,8 +250,19 @@ export const deleteProject = action({
 });
 
 export const deleteProjectFromDB = internalMutation({
-	args: { projectId: v.id("project") },
-	handler: async (ctx, { projectId }) => {
+	args: {
+		workspaceId: v.string(),
+		projectId: v.id("project"),
+		memberId: v.string(),
+	},
+	handler: async (ctx, { workspaceId, projectId, memberId }) => {
 		await ctx.db.delete(projectId);
+
+		await ctx.db.insert("activityLog", {
+			action: "project_deleted",
+			memberId: memberId,
+			projectId: projectId,
+			workspaceId: workspaceId,
+		});
 	},
 });

@@ -53,29 +53,6 @@ function debounce<T extends (...args: any[]) => any>(
 	};
 }
 
-// Helper function to check if a point is near a line segment
-const isPointNearLine = (
-	point: { x: number; y: number },
-	start: { x: number; y: number },
-	end: { x: number; y: number },
-	threshold: number,
-): boolean => {
-	const dx = end.x - start.x;
-	const dy = end.y - start.y;
-	const lengthSquared = dx * dx + dy * dy;
-	if (lengthSquared === 0)
-		return Math.hypot(point.x - start.x, point.y - start.y) < threshold;
-
-	const t =
-		((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
-	const tClamped = Math.max(0, Math.min(1, t));
-
-	const closestX = start.x + tClamped * dx;
-	const closestY = start.y + tClamped * dy;
-
-	return Math.hypot(point.x - closestX, point.y - closestY) < threshold;
-};
-
 export const Route = createFileRoute(
 	"/dashboard/project/$projectId/decision-board",
 )({
@@ -201,6 +178,8 @@ function RouteComponent() {
 	const updateElement = useMutation(api.element.updateElement);
 	const deleteElement = useMutation(api.element.deleteElement);
 
+	const addComment = useMutation(api.element.addComment);
+
 	type UpdateElementArgs = Parameters<typeof updateElement>[0];
 	type Patch = UpdateElementArgs["patch"];
 
@@ -287,6 +266,7 @@ function RouteComponent() {
 						_creationTime: now,
 						createdAt: now,
 						updatedAt: now,
+						commentCount: 0,
 					},
 				]);
 
@@ -334,6 +314,7 @@ function RouteComponent() {
 						_creationTime: now,
 						createdAt: now,
 						updatedAt: now,
+						commentCount: 0,
 					},
 				]);
 
@@ -553,6 +534,7 @@ function RouteComponent() {
 							_creationTime: now,
 							createdAt: now,
 							updatedAt: now,
+							commentCount: 0,
 						},
 					]);
 
@@ -602,6 +584,7 @@ function RouteComponent() {
 							_creationTime: now,
 							createdAt: now,
 							updatedAt: now,
+							commentCount: 0,
 						},
 					]);
 
@@ -718,29 +701,9 @@ function RouteComponent() {
 		// );
 	};
 
-	const handleAddComment = (noteId: Id<"element">) => {
+	const handleAddComment = async (noteId: Id<"element">) => {
 		if (!newComment.trim()) return;
-
-		// setElements(
-		// 	normalizedElements.map((el) => {
-		// 		if (el.id === noteId && (el.elementType === "note" || el.elementType === "sticky")) {
-		// 			// Include 'sticky' type
-		// 			return {
-		// 				...el,
-		// 				comments: [
-		// 					...el.comments,
-		// 					{
-		// 						id: Date.now(),
-		// 						author: "You",
-		// 						content: newComment,
-		// 						timestamp: new Date().toISOString(),
-		// 					},
-		// 				],
-		// 			};
-		// 		}
-		// 		return el;
-		// 	}),
-		// );
+		await addComment({ id: noteId, projectId: project._id, text: newComment });
 		setNewComment("");
 	};
 
@@ -1001,7 +964,7 @@ function RouteComponent() {
 		(el) =>
 			el._id === selectedNoteForComments &&
 			(el.elementType === "note" || el.elementType === "sticky"),
-	) as StickyNoteElement | undefined;
+	);
 
 	const { project } = Route.useLoaderData();
 	const { user } = Route.useRouteContext();
@@ -1294,7 +1257,7 @@ function RouteComponent() {
 
 										<div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs">
 											<div className="flex items-center gap-3">
-												<button
+												{/*<button
 													type="button"
 													onClick={(e) => {
 														e.stopPropagation();
@@ -1304,7 +1267,7 @@ function RouteComponent() {
 												>
 													<ThumbsUp className="w-3 h-3" />
 													<span>{element.votes}</span>
-												</button>
+												</button>*/}
 												<button
 													type="button"
 													onClick={(e) => {
@@ -1315,7 +1278,7 @@ function RouteComponent() {
 													className="flex items-center gap-1 hover:text-primary transition-colors"
 												>
 													<MessageSquare className="w-3 h-3" />
-													{/*<span>{element.comments.length}</span>*/}
+													<span>{element.commentCount}</span>
 												</button>
 											</div>
 											<span className="opacity-60">
@@ -1654,13 +1617,19 @@ function RouteComponent() {
 			/>
 
 			{/* Comments Dialog */}
-			<DecisionBoardComments
-				commentsDialogOpen={commentsDialogOpen}
-				setCommentsDialogOpen={setCommentsDialogOpen}
-				handleAddComment={handleAddComment}
-				selectedNoteData={selectedNoteData}
-				selectedNoteForComments={selectedNoteForComments}
-			/>
+			{selectedNoteData && (
+				<DecisionBoardComments
+					newComment={newComment}
+					setNewComment={setNewComment}
+					commentsDialogOpen={commentsDialogOpen}
+					setCommentsDialogOpen={setCommentsDialogOpen}
+					handleAddComment={handleAddComment}
+					selectedNoteData={selectedNoteData}
+					selectedNoteForComments={selectedNoteForComments}
+					noteId={selectedNoteData?._id}
+					projectId={project._id}
+				/>
+			)}
 		</div>
 	);
 }

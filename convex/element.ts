@@ -1,5 +1,5 @@
 import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { authComponent, createAuth } from "./auth";
 
 export const getElements = query({
@@ -7,26 +7,38 @@ export const getElements = query({
 	handler: async (ctx, { projectId }) => {
 		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 		const { _id } = await authComponent.getAuthUser(ctx);
-
 		const project = await ctx.db.get(projectId);
 		if (project === null) {
-			throw new Error("project not found");
+			throw new ConvexError("project not found");
 		}
-
 		const member = await auth.api.getActiveMember({ headers: headers });
-
 		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
+			throw new ConvexError("you cannot access this project");
 		}
-
 		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
+			throw new ConvexError("you cannot access this project");
 		}
 
-		return ctx.db
+		const elements = await ctx.db
 			.query("element")
 			.withIndex("by_project", (q) => q.eq("projectId", projectId))
 			.collect();
+
+		const elementsWithComments = await Promise.all(
+			elements.map(async (element) => {
+				const comments = await ctx.db
+					.query("comment")
+					.withIndex("by_element", (q) => q.eq("elementId", element._id))
+					.collect();
+
+				return {
+					...element,
+					commentCount: comments.length,
+				};
+			}),
+		);
+
+		return elementsWithComments;
 	},
 });
 
@@ -67,25 +79,37 @@ export const insertElement = mutation({
 
 		const project = await ctx.db.get(element.projectId);
 		if (project === null) {
-			throw new Error("project not found");
+			throw new ConvexError("project not found");
 		}
 
 		const member = await auth.api.getActiveMember({ headers: headers });
 
 		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
+			throw new ConvexError("you cannot access this project");
 		}
 
 		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
+			throw new ConvexError("you cannot access this project");
 		}
 
-		return await ctx.db.insert("element", {
+		const elementId = await ctx.db.insert("element", {
 			...element,
 			createdBy: member.id,
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		});
+
+		if (element.elementType === "note") {
+			await ctx.db.insert("activityLog", {
+				action: "element_created",
+				memberId: member.id,
+				projectId: project._id,
+				workspaceId: member.organizationId,
+				elementId: elementId,
+			});
+		}
+
+		return elementId;
 	},
 });
 
@@ -117,17 +141,17 @@ export const updateElement = mutation({
 
 		const project = await ctx.db.get(projectId);
 		if (project === null) {
-			throw new Error("project not found");
+			throw new ConvexError("project not found");
 		}
 
 		const member = await auth.api.getActiveMember({ headers: headers });
 
 		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
+			throw new ConvexError("you cannot access this project");
 		}
 
 		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
+			throw new ConvexError("you cannot access this project");
 		}
 		await ctx.db.patch(id, { ...patch, updatedAt: Date.now() });
 	},
@@ -141,19 +165,97 @@ export const deleteElement = mutation({
 
 		const project = await ctx.db.get(projectId);
 		if (project === null) {
-			throw new Error("project not found");
+			throw new ConvexError("project not found");
 		}
 
 		const member = await auth.api.getActiveMember({ headers: headers });
 
 		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
+			throw new ConvexError("you cannot access this project");
 		}
 
 		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
+			throw new ConvexError("you cannot access this project");
+		}
+
+		const element = await ctx.db.get(id);
+
+		if (!element) {
+			throw new ConvexError("element not found");
+		}
+
+		if (element.createdBy !== member.id) {
+			throw new ConvexError("you did not create this element");
 		}
 
 		await ctx.db.delete(id);
+	},
+});
+
+export const addComment = mutation({
+	args: { projectId: v.id("project"), id: v.id("element"), text: v.string() },
+	handler: async (ctx, { id, projectId, text }) => {
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+		const { _id } = await authComponent.getAuthUser(ctx);
+
+		const project = await ctx.db.get(projectId);
+		if (project === null) {
+			throw new ConvexError("project not found");
+		}
+
+		const member = await auth.api.getActiveMember({ headers: headers });
+
+		if (member === null || member.user.id !== _id) {
+			throw new ConvexError("you cannot access this project");
+		}
+
+		if (member.organizationId !== project.workspaceId) {
+			throw new ConvexError("you cannot access this project");
+		}
+
+		const element = await ctx.db.get(id);
+
+		if (!element) {
+			throw new ConvexError("element not found");
+		}
+
+		const now = Date.now();
+
+		await ctx.db.insert("comment", {
+			elementId: id,
+			text: text,
+			memberId: member.id,
+			memberName: member.user.name,
+			createdAt: now,
+			updatedAt: now,
+		});
+	},
+});
+
+export const getComments = query({
+	args: { id: v.id("element"), projectId: v.id("project") },
+	handler: async (ctx, { id, projectId }) => {
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+		const { _id } = await authComponent.getAuthUser(ctx);
+
+		const project = await ctx.db.get(projectId);
+		if (project === null) {
+			throw new ConvexError("project not found");
+		}
+
+		const member = await auth.api.getActiveMember({ headers: headers });
+
+		if (member === null || member.user.id !== _id) {
+			throw new ConvexError("you cannot access this project");
+		}
+
+		if (member.organizationId !== project.workspaceId) {
+			throw new ConvexError("you cannot access this project");
+		}
+
+		return await ctx.db
+			.query("comment")
+			.withIndex("by_element", (q) => q.eq("elementId", id))
+			.collect();
 	},
 });
