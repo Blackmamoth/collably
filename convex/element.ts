@@ -31,9 +31,18 @@ export const getElements = query({
 					.withIndex("by_element", (q) => q.eq("elementId", element._id))
 					.collect();
 
+				// Check if current member has voted for this element
+				const existingVote = await ctx.db
+					.query("elementVote")
+					.withIndex("by_element_and_member", (q) =>
+						q.eq("elementId", element._id).eq("memberId", member.id),
+					)
+					.first();
+
 				return {
 					...element,
 					commentCount: comments.length,
+					hasVoted: existingVote !== null,
 				};
 			}),
 		);
@@ -257,5 +266,71 @@ export const getComments = query({
 			.query("comment")
 			.withIndex("by_element", (q) => q.eq("elementId", id))
 			.collect();
+	},
+});
+
+export const toggleVote = mutation({
+	args: { projectId: v.id("project"), id: v.id("element") },
+	handler: async (ctx, { id, projectId }) => {
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+		const { _id } = await authComponent.getAuthUser(ctx);
+
+		const project = await ctx.db.get(projectId);
+		if (project === null) {
+			throw new ConvexError("project not found");
+		}
+
+		const member = await auth.api.getActiveMember({ headers: headers });
+
+		if (member === null || member.user.id !== _id) {
+			throw new ConvexError("you cannot access this project");
+		}
+
+		if (member.organizationId !== project.workspaceId) {
+			throw new ConvexError("you cannot access this project");
+		}
+
+		const element = await ctx.db.get(id);
+
+		if (!element) {
+			throw new ConvexError("element not found");
+		}
+
+		// Only allow voting on notes and sticky notes
+		if (element.elementType !== "note" && element.elementType !== "sticky") {
+			throw new ConvexError("voting is only allowed on notes and sticky notes");
+		}
+
+		// Check if member has already voted
+		const existingVote = await ctx.db
+			.query("elementVote")
+			.withIndex("by_element_and_member", (q) =>
+				q.eq("elementId", id).eq("memberId", member.id),
+			)
+			.first();
+
+		if (existingVote) {
+			// Remove vote: delete the vote record and decrement count
+			await ctx.db.delete(existingVote._id);
+			const newVoteCount = Math.max(0, element.votes - 1);
+			await ctx.db.patch(id, {
+				votes: newVoteCount,
+				updatedAt: Date.now(),
+			});
+			return newVoteCount;
+		} else {
+			// Add vote: create vote record and increment count
+			await ctx.db.insert("elementVote", {
+				elementId: id,
+				memberId: member.id,
+				createdAt: Date.now(),
+			});
+			const newVoteCount = element.votes + 1;
+			await ctx.db.patch(id, {
+				votes: newVoteCount,
+				updatedAt: Date.now(),
+			});
+			return newVoteCount;
+		}
 	},
 });

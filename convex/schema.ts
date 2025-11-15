@@ -71,6 +71,13 @@ export default defineSchema({
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	}).index("by_element", ["elementId"]),
+	elementVote: defineTable({
+		elementId: v.id("element"),
+		memberId: v.string(),
+		createdAt: v.number(),
+	})
+		.index("by_element", ["elementId"])
+		.index("by_element_and_member", ["elementId", "memberId"]),
 	presence: defineTable({
 		projectId: v.id("project"),
 		memberId: v.string(),

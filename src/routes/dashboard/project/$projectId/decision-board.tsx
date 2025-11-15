@@ -179,6 +179,7 @@ function RouteComponent() {
 	const deleteElement = useMutation(api.element.deleteElement);
 
 	const addComment = useMutation(api.element.addComment);
+	const toggleVote = useMutation(api.element.toggleVote);
 
 	type UpdateElementArgs = Parameters<typeof updateElement>[0];
 	type Patch = UpdateElementArgs["patch"];
@@ -267,6 +268,7 @@ function RouteComponent() {
 						createdAt: now,
 						updatedAt: now,
 						commentCount: 0,
+						hasVoted: false,
 					},
 				]);
 
@@ -315,6 +317,7 @@ function RouteComponent() {
 						createdAt: now,
 						updatedAt: now,
 						commentCount: 0,
+						hasVoted: false,
 					},
 				]);
 
@@ -535,6 +538,7 @@ function RouteComponent() {
 							createdAt: now,
 							updatedAt: now,
 							commentCount: 0,
+							hasVoted: false,
 						},
 					]);
 
@@ -585,6 +589,7 @@ function RouteComponent() {
 							createdAt: now,
 							updatedAt: now,
 							commentCount: 0,
+							hasVoted: false,
 						},
 					]);
 
@@ -691,20 +696,92 @@ function RouteComponent() {
 		if (selectedElement === id) setSelectedElement(null);
 	};
 
-	const handleVote = (noteId: Id<"element">) => {
-		// setElements(
-		// 	normalizedElements.map((el) =>
-		// 		el.id === noteId && (el.elementType === "note" || el.elementType === "sticky")
-		// 			? { ...el, votes: el.votes + 1 }
-		// 			: el,
-		// 	),
-		// );
+	const handleVote = async (noteId: Id<"element">) => {
+		const element = localElements.find((el) => el._id === noteId);
+		if (!element || (element.elementType !== "note" && element.elementType !== "sticky")) {
+			return;
+		}
+
+		// Optimistically update local state immediately
+		const newHasVoted = !element.hasVoted;
+		const newVoteCount = newHasVoted ? element.votes + 1 : Math.max(0, element.votes - 1);
+
+		setLocalElements((prev) =>
+			prev.map((el) =>
+				el._id === noteId
+					? {
+							...el,
+							votes: newVoteCount,
+							hasVoted: newHasVoted,
+						}
+					: el,
+			),
+		);
+
+		try {
+			await toggleVote({
+				projectId: params.projectId as Id<"project">,
+				id: noteId,
+			});
+		} catch (error) {
+			console.error("Failed to toggle vote:", error);
+			// Revert on error
+			setLocalElements((prev) =>
+				prev.map((el) =>
+					el._id === noteId
+						? {
+								...el,
+								votes: element.votes,
+								hasVoted: element.hasVoted,
+							}
+						: el,
+				),
+			);
+		}
 	};
 
 	const handleAddComment = async (noteId: Id<"element">) => {
 		if (!newComment.trim()) return;
-		await addComment({ id: noteId, projectId: project._id, text: newComment });
+
+		const element = localElements.find((el) => el._id === noteId);
+		if (!element) return;
+
+		const commentText = newComment.trim();
+		const previousCommentCount = element.commentCount || 0;
+
+		// Optimistically update local state immediately
+		setLocalElements((prev) =>
+			prev.map((el) =>
+				el._id === noteId
+					? {
+							...el,
+							commentCount: (el.commentCount || 0) + 1,
+						}
+					: el,
+			),
+		);
+
+		// Clear the input immediately for better UX
 		setNewComment("");
+
+		try {
+			await addComment({ id: noteId, projectId: project._id, text: commentText });
+		} catch (error) {
+			console.error("Failed to add comment:", error);
+			// Revert on error
+			setLocalElements((prev) =>
+				prev.map((el) =>
+					el._id === noteId
+						? {
+								...el,
+								commentCount: previousCommentCount,
+							}
+						: el,
+				),
+			);
+			// Restore the comment text
+			setNewComment(commentText);
+		}
 	};
 
 	const applyTemplate = (
@@ -1257,17 +1334,25 @@ function RouteComponent() {
 
 										<div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs">
 											<div className="flex items-center gap-3">
-												{/*<button
+												<button
 													type="button"
 													onClick={(e) => {
 														e.stopPropagation();
 														handleVote(element._id);
 													}}
-													className="flex items-center gap-1 hover:text-primary transition-colors"
+													className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+													style={{
+														color: element.hasVoted ? "#78350f" : "inherit",
+													}}
 												>
-													<ThumbsUp className="w-3 h-3" />
+													<ThumbsUp
+														className="w-3 h-3"
+														style={{
+															fill: element.hasVoted ? "#78350f" : "none",
+														}}
+													/>
 													<span>{element.votes}</span>
-												</button>*/}
+												</button>
 												<button
 													type="button"
 													onClick={(e) => {
