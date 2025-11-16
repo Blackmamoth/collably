@@ -1,7 +1,9 @@
 import { ConvexError, v } from "convex/values";
-import { query, mutation } from "./_generated/server";
-import { authComponent, createAuth } from "./auth";
 import { formatDistanceToNow } from "date-fns";
+import type { Id } from "./_generated/dataModel";
+import { mutation, query } from "./_generated/server";
+import { authComponent, createAuth } from "./auth";
+import { validateProjectAccess } from "./helpers/authorization";
 
 export const getWorkspaces = query({
 	args: {},
@@ -97,23 +99,7 @@ export const createActivityLog = mutation({
 		),
 	},
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (project === null) {
-			throw new Error("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
-		}
+		const { member } = await validateProjectAccess(ctx, args.projectId);
 
 		await ctx.db.insert("activityLog", { ...args, memberId: member.id });
 	},
@@ -122,72 +108,80 @@ export const createActivityLog = mutation({
 export const getRecentActivities = query({
 	args: { workspaceId: v.string() },
 	handler: async (ctx, args) => {
-		try{
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-		const activeMember = await auth.api.getActiveMember({ headers });
-		// if (!activeMember || activeMember.user.id !== _id) {
-		// 	throw new Error("you cannot access this workspace");
-		// }
-		// if (activeMember.organizationId !== args.workspaceId) {
-		// 	throw new Error("you cannot access this workspace");
-		// }
-		const members = await auth.api.listMembers({ headers });
-		const memberMap = new Map<string, string>();
-		for (const m of members.members) {
-			memberMap.set(m.id, m.user.name ?? "Member");
-		}
-		const logs = await ctx.db
-			.query("activityLog")
-			.withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
-			.order("desc")
-			.take(5);
-
-		// Create taskMap
-		const taskMap = new Map<string, string>();
-
-		const formatted = [];
-		for (const log of logs) {
-			// Project name lookup (optional)
-			let projectName = null;
-			if (log.projectId) {
-				const project = await ctx.db.get(log.projectId);
-				projectName = project?.name ?? null;
+		try {
+			const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+			const { _id } = await authComponent.getAuthUser(ctx);
+			await auth.api.getActiveMember({ headers });
+			const members = await auth.api.listMembers({ headers });
+			const memberMap = new Map<string, string>();
+			for (const m of members.members) {
+				memberMap.set(m.id, m.user.name ?? "Member");
 			}
+			const logs = await ctx.db
+				.query("activityLog")
+				.withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+				.order("desc")
+				.take(5);
 
-			let taskTitle: string | null = null;
-			if (log.taskId) {
-				if (taskMap.has(log.taskId)) {
-					taskTitle = taskMap.get(log.taskId) ?? null;
-				} else {
-					const task = await ctx.db.get(log.taskId);
-					if (task) {
-						taskTitle = task.title;
-						taskMap.set(log.taskId, task.title);
-					}
+			// Batch fetch all projects and tasks to avoid N+1 queries
+			const projectIds = new Set<Id<"project">>();
+			const taskIds = new Set<Id<"task">>();
+			for (const log of logs) {
+				if (log.projectId) {
+					projectIds.add(log.projectId);
+				}
+				if (log.taskId) {
+					taskIds.add(log.taskId);
 				}
 			}
 
-			const userName = memberMap.get(log.memberId);
-			const message = formatActivityMessage(log.action);
-			const relative = formatDistanceToNow(log._creationTime, {
-				addSuffix: true,
-			});
-			formatted.push({
-				id: log._id,
-				userName: userName || "Member",
-				message,
-				projectName,
-				taskTitle,
-				timestamp: log._creationTime,
-				relativeTime: relative,
-			});
+			// Fetch all projects in batch
+			const projectMap = new Map<string, string>();
+			for (const projectId of projectIds) {
+				const project = await ctx.db.get(projectId);
+				if (project) {
+					projectMap.set(projectId, project.name);
+				}
+			}
+
+			// Fetch all tasks in batch
+			const taskMap = new Map<string, string>();
+			for (const taskId of taskIds) {
+				const task = await ctx.db.get(taskId);
+				if (task) {
+					taskMap.set(taskId, task.title);
+				}
+			}
+
+			const formatted = [];
+			for (const log of logs) {
+				// Project name lookup (optional)
+				const projectName = log.projectId
+					? projectMap.get(log.projectId) ?? null
+					: null;
+
+				const taskTitle = log.taskId ? taskMap.get(log.taskId) ?? null : null;
+
+				const userName = memberMap.get(log.memberId);
+				const message = formatActivityMessage(log.action);
+				const relative = formatDistanceToNow(log._creationTime, {
+					addSuffix: true,
+				});
+				formatted.push({
+					id: log._id,
+					userName: userName || "Member",
+					message,
+					projectName,
+					taskTitle,
+					timestamp: log._creationTime,
+					relativeTime: relative,
+				});
+			}
+			return formatted;
+		} catch (error: unknown) {
+			console.error("Error fetching recent activities:", error);
+			return [];
 		}
-		return formatted;
-	}catch(error){
-		console.error(error);
-		return [];
-	}
 	},
 });
 

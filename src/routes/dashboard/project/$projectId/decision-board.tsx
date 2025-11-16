@@ -2,6 +2,7 @@ import { createFileRoute, redirect, useParams } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import {
 	MessageSquare,
 	MousePointer2,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import AISummarySidebar from "@/components/dashboard/decision-board/ai-summary";
 import DecisionBoardComments from "@/components/dashboard/decision-board/comments-dialog";
 import DecisionBoardMembersDialog from "@/components/dashboard/decision-board/members-dialog";
@@ -225,11 +227,19 @@ function RouteComponent() {
 			if (isTempId(id)) {
 				return;
 			}
-			await updateElement({
-				projectId: params.projectId as Id<"project">,
-				id,
-				patch,
-			});
+			try {
+				await updateElement({
+					projectId: params.projectId as Id<"project">,
+					id,
+					patch,
+				});
+			} catch (error) {
+				if (error instanceof ConvexError) {
+					console.error("Failed to update element:", error.data);
+				} else {
+					console.error("Failed to update element:", error);
+				}
+			}
 		}, 250);
 	}, [updateElement, params.projectId, isTempId]);
 
@@ -313,16 +323,27 @@ function RouteComponent() {
 
 				setSelectedTool("select");
 
-				const id = await insertElement({
-					element: newElement,
-				});
+				try {
+					const id = await insertElement({
+						element: newElement,
+					});
 
-				setLocalElements((prev) =>
-					prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
-				);
+					setLocalElements((prev) =>
+						prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
+					);
 
-				setSelectedElement(id);
-				setEditingElement(id);
+					setSelectedElement(id);
+					setEditingElement(id);
+				} catch (error) {
+					if (error instanceof ConvexError) {
+						toast.error(error.data);
+					} else {
+						console.error("Failed to insert element:", error);
+						toast.error("Failed to insert element. Please try again.");
+					}
+					// Remove optimistic update on error
+					setLocalElements((prev) => prev.filter((el) => el._id !== tempId));
+				}
 			} else if (selectedTool === "note") {
 				const canvasPos = screenToCanvas(e.clientX, e.clientY);
 				const now = Date.now();
@@ -362,16 +383,27 @@ function RouteComponent() {
 
 				setSelectedTool("select"); // Switch back to select tool after adding
 
-				const id = await insertElement({
-					element: newElement,
-				});
+				try {
+					const id = await insertElement({
+						element: newElement,
+					});
 
-				setLocalElements((prev) =>
-					prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
-				);
+					setLocalElements((prev) =>
+						prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
+					);
 
-				setSelectedElement(id);
-				setEditingElement(id);
+					setSelectedElement(id);
+					setEditingElement(id);
+				} catch (error) {
+					if (error instanceof ConvexError) {
+						toast.error(error.data);
+					} else {
+						console.error("Failed to insert element:", error);
+						toast.error("Failed to insert element. Please try again.");
+					}
+					// Remove optimistic update on error
+					setLocalElements((prev) => prev.filter((el) => el._id !== tempId));
+				}
 			} else {
 				// If selecting tool is 'select' or 'hand' and not panning, deselect elements
 				setSelectedElement(null);
@@ -525,11 +557,21 @@ function RouteComponent() {
 		if (draggedElement) {
 			const el = localElements.find((el) => el._id === draggedElement);
 			if (el && !isTempId(el._id)) {
-				updateElement({
-					projectId: params.projectId as Id<"project">,
-					id: el._id,
-					patch: { x: el.x, y: el.y },
-				});
+				(async () => {
+					try {
+						await updateElement({
+							projectId: params.projectId as Id<"project">,
+							id: el._id,
+							patch: { x: el.x, y: el.y },
+						});
+					} catch (error) {
+						if (error instanceof ConvexError) {
+							console.error("Failed to update element position:", error.data);
+						} else {
+							console.error("Failed to update element position:", error);
+						}
+					}
+				})();
 			}
 			setDraggedElement(null);
 			return;
@@ -584,13 +626,24 @@ function RouteComponent() {
 
 					setSelectedTool("select");
 
-					const id = await insertElement({
-						element: newElement,
-					});
+					try {
+						const id = await insertElement({
+							element: newElement,
+						});
 
-					setLocalElements((prev) =>
-						prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
-					);
+						setLocalElements((prev) =>
+							prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
+						);
+					} catch (error) {
+						if (error instanceof ConvexError) {
+							toast.error(error.data);
+						} else {
+							console.error("Failed to insert element:", error);
+							toast.error("Failed to insert element. Please try again.");
+						}
+						// Remove optimistic update on error
+						setLocalElements((prev) => prev.filter((el) => el._id !== tempId));
+					}
 				}
 			}
 
@@ -635,13 +688,24 @@ function RouteComponent() {
 
 					setSelectedTool("select");
 
-					const id = await insertElement({
-						element: newElement,
-					});
+					try {
+						const id = await insertElement({
+							element: newElement,
+						});
 
-					setLocalElements((prev) =>
-						prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
-					);
+						setLocalElements((prev) =>
+							prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
+						);
+					} catch (error) {
+						if (error instanceof ConvexError) {
+							toast.error(error.data);
+						} else {
+							console.error("Failed to insert element:", error);
+							toast.error("Failed to insert element. Please try again.");
+						}
+						// Remove optimistic update on error
+						setLocalElements((prev) => prev.filter((el) => el._id !== tempId));
+					}
 				}
 			}
 
@@ -732,8 +796,17 @@ function RouteComponent() {
 	};
 
 	const handleDeleteElement = async (id: Id<"element">) => {
-		await deleteElement({ id, projectId: params.projectId as Id<"project"> });
-		if (selectedElement === id) setSelectedElement(null);
+		try {
+			await deleteElement({ id, projectId: params.projectId as Id<"project"> });
+			if (selectedElement === id) setSelectedElement(null);
+		} catch (error) {
+			if (error instanceof ConvexError) {
+				toast.error(error.data);
+			} else {
+				console.error("Failed to delete element:", error);
+				toast.error("Failed to delete element. Please try again.");
+			}
+		}
 	};
 
 	const handleVote = async (noteId: Id<"element">) => {
@@ -764,7 +837,12 @@ function RouteComponent() {
 				id: noteId,
 			});
 		} catch (error) {
-			console.error("Failed to toggle vote:", error);
+			if (error instanceof ConvexError) {
+				toast.error(error.data);
+			} else {
+				console.error("Failed to toggle vote:", error);
+				toast.error("Failed to toggle vote. Please try again.");
+			}
 			// Revert on error
 			setLocalElements((prev) =>
 				prev.map((el) =>
@@ -807,7 +885,12 @@ function RouteComponent() {
 		try {
 			await addComment({ id: noteId, projectId: project._id, text: commentText });
 		} catch (error) {
-			console.error("Failed to add comment:", error);
+			if (error instanceof ConvexError) {
+				toast.error(error.data);
+			} else {
+				console.error("Failed to add comment:", error);
+				toast.error("Failed to add comment. Please try again.");
+			}
 			// Revert on error
 			setLocalElements((prev) =>
 				prev.map((el) =>
@@ -906,14 +989,24 @@ function RouteComponent() {
 		};
 	}, [activePresence, workspaceMembers]);
 
-	// Presence Heartbeat (keeps user “online”)
+	// Presence Heartbeat (keeps user "online")
 	useEffect(() => {
 		if (!currentMember) return;
 
 		const interval = setInterval(() => {
-			updatePresence({
-				projectId: params.projectId as Id<"project">,
-			});
+			(async () => {
+				try {
+					await updatePresence({
+						projectId: params.projectId as Id<"project">,
+					});
+				} catch (error) {
+					if (error instanceof ConvexError) {
+						console.error("Failed to update presence:", error.data);
+					} else {
+						console.error("Failed to update presence:", error);
+					}
+				}
+			})();
 		}, 15000);
 
 		return () => clearInterval(interval);
@@ -930,7 +1023,17 @@ function RouteComponent() {
 	useEffect(() => {
 		return () => {
 			if (currentMember) {
-				removePresence({ projectId: params.projectId as Id<"project"> });
+				(async () => {
+					try {
+						await removePresence({ projectId: params.projectId as Id<"project"> });
+					} catch (error) {
+						if (error instanceof ConvexError) {
+							console.error("Failed to remove presence:", error.data);
+						} else {
+							console.error("Failed to remove presence:", error);
+						}
+					}
+				})();
 			}
 		};
 	}, [currentMember, params.projectId, removePresence]);
@@ -1077,11 +1180,21 @@ function RouteComponent() {
 														(e) => e._id === element._id,
 													);
 													if (el && !isTempId(el._id)) {
-														updateElement({
-															projectId: params.projectId as Id<"project">,
-															id: el._id,
-															patch: { content: el.content },
-														});
+														(async () => {
+															try {
+																await updateElement({
+																	projectId: params.projectId as Id<"project">,
+																	id: el._id,
+																	patch: { content: el.content },
+																});
+															} catch (error) {
+																if (error instanceof ConvexError) {
+																	console.error("Failed to update element content:", error.data);
+																} else {
+																	console.error("Failed to update element content:", error);
+																}
+															}
+														})();
 													}
 													setEditingElement(null);
 												}}
@@ -1196,11 +1309,21 @@ function RouteComponent() {
 														(x) => x._id === element._id,
 													);
 													if (el && !isTempId(el._id)) {
-														updateElement({
-															projectId: params.projectId as Id<"project">,
-															id: el._id,
-															patch: { content: el.content },
-														});
+														(async () => {
+															try {
+																await updateElement({
+																	projectId: params.projectId as Id<"project">,
+																	id: el._id,
+																	patch: { content: el.content },
+																});
+															} catch (error) {
+																if (error instanceof ConvexError) {
+																	console.error("Failed to update element content:", error.data);
+																} else {
+																	console.error("Failed to update element content:", error);
+																}
+															}
+														})();
 													}
 													setEditingElement(null);
 												}}

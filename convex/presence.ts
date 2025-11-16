@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
-import { authComponent, createAuth } from "./auth";
+import { ConvexError, v } from "convex/values";
+import { validateProjectAccess } from "./helpers/authorization";
+import { ACTIVE_THRESHOLD } from "./constants";
 
 export const updatePresence = mutation({
 	args: {
@@ -9,23 +10,7 @@ export const updatePresence = mutation({
 		cursorY: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (project === null) {
-			throw new Error("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
-		}
+		const { project, member } = await validateProjectAccess(ctx, args.projectId);
 
 		const now = Date.now();
 
@@ -44,7 +29,6 @@ export const updatePresence = mutation({
 				updatedAt: now,
 			});
 		} else {
-			const now = Date.now();
 			await ctx.db.insert("presence", {
 				projectId: project._id,
 				memberId: member.id,
@@ -63,34 +47,20 @@ export const getActiveMembers = query({
 		projectId: v.id("project"),
 	},
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (project === null) {
-			throw new Error("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
-		}
+		const { project } = await validateProjectAccess(ctx, args.projectId);
 
 		const now = Date.now();
-		const ACTIVE_THRESHOLD = 30000;
+		const cutoffTime = now - ACTIVE_THRESHOLD;
 
+		// Fetch all presence records for the project and filter by active threshold
+		// Note: This requires in-memory filtering since there's no time-based index
 		const allPresence = await ctx.db
 			.query("presence")
 			.withIndex("by_project", (q) => q.eq("projectId", project._id))
 			.collect();
 
 		const activeMembers = allPresence.filter(
-			(p) => now - p.lastSeen < ACTIVE_THRESHOLD,
+			(p) => p.lastSeen >= cutoffTime,
 		);
 
 		return activeMembers;
@@ -102,23 +72,7 @@ export const removePresence = mutation({
 		projectId: v.id("project"),
 	},
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (project === null) {
-			throw new Error("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
-		}
+		const { project, member } = await validateProjectAccess(ctx, args.projectId);
 
 		const existing = await ctx.db
 			.query("presence")

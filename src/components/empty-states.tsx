@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Layers, Users, FolderOpen, Inbox } from "lucide-react";
+import { Layers, Users, FolderOpen, Inbox, Clock } from "lucide-react";
 
 interface EmptyStateProps {
 	icon?: ReactNode;
@@ -126,5 +126,15 @@ export function NoSearchResultsEmpty({ query }: { query: string }) {
 				We couldn't find anything matching "{query}". Try adjusting your search.
 			</p>
 		</div>
+	);
+}
+
+export function NoActivitiesEmpty() {
+	return (
+		<EmptyState
+			icon={<Clock className="w-16 h-16" />}
+			title="No recent activity"
+			description="Activity from your team will appear here as you work on projects and tasks."
+		/>
 	);
 }

@@ -157,18 +157,36 @@ function RouteComponent() {
 		setGeneratingSubTaskId(taskId);
 		setIsLoading(true);
 
-		await generateSubTasks({ taskId });
-
-		setGeneratingSubTaskId(null);
-		setIsLoading(false);
+		try {
+			await generateSubTasks({ taskId });
+		} catch (error) {
+			if (error instanceof ConvexError) {
+				toast.error(error.data);
+			} else {
+				console.error("Failed to generate subtasks:", error);
+				toast.error("Failed to generate subtasks. Please try again.");
+			}
+		} finally {
+			setGeneratingSubTaskId(null);
+			setIsLoading(false);
+		}
 	};
 
 	const toggleSubtask = async (task: Doc<"task">) => {
-		await updateTaskStatus({
-			taskId: task._id,
-			projectId: project._id,
-			newStatus: task.status === "done" ? "todo" : "done",
-		});
+		try {
+			await updateTaskStatus({
+				taskId: task._id,
+				projectId: project._id,
+				newStatus: task.status === "done" ? "todo" : "done",
+			});
+		} catch (error) {
+			if (error instanceof ConvexError) {
+				toast.error(error.data);
+			} else {
+				console.error("Failed to update task status:", error);
+				toast.error("Failed to update task status. Please try again.");
+			}
+		}
 	};
 
 	const handleDrop = async (newStatus: "todo" | "inprogress" | "done") => {
@@ -190,7 +208,16 @@ function RouteComponent() {
 	};
 
 	const removeSubtask = async (taskId: Id<"task">) => {
-		await removeTask({ taskId, projectId: project._id });
+		try {
+			await removeTask({ taskId, projectId: project._id });
+		} catch (error) {
+			if (error instanceof ConvexError) {
+				toast.error(error.data);
+			} else {
+				console.error("Failed to remove task:", error);
+				toast.error("Failed to remove task. Please try again.");
+			}
+		}
 	};
 
 	const form = useForm({
@@ -206,42 +233,73 @@ function RouteComponent() {
 		},
 		onSubmit: async ({ value }) => {
 			setIsLoading(true);
-			if (workspaceMembers?.members) {
-				const currentMember = workspaceMembers?.members?.find(
-					(m) => m.user.id === user.id,
-				);
+			try {
+				if (workspaceMembers?.members) {
+					const currentMember = workspaceMembers?.members?.find(
+						(m) => m.user.id === user.id,
+					);
 
-				if (!currentMember) {
+					if (!currentMember) {
+						setIsAddingTask(false);
+						setIsLoading(false);
+						return;
+					}
+
+					const data = {
+						...value,
+						projectId: project._id,
+						dueDate:
+							value.dueDate === ""
+								? undefined
+								: new Date(value.dueDate).getTime(),
+						createdBy: currentMember.id,
+						priority: value.priority,
+					};
+
+					await createTask(data);
 					setIsAddingTask(false);
-					return;
+					form.reset();
 				}
-
-				const data = {
-					...value,
-					projectId: project._id,
-					dueDate:
-						value.dueDate === ""
-							? undefined
-							: new Date(value.dueDate).getTime(),
-					createdBy: currentMember.id,
-					priority: value.priority,
-				};
-
-				await createTask(data);
+			} catch (error) {
+				if (error instanceof ConvexError) {
+					toast.error(error.data);
+				} else {
+					console.error("Failed to create task:", error);
+					toast.error("Failed to create task. Please try again.");
+				}
+			} finally {
+				setIsLoading(false);
 			}
-			setIsAddingTask(false);
-			setIsLoading(false);
-			form.reset();
 		},
 	});
 
 	useEffect(() => {
-		updatePresence({
-			projectId: project._id,
-		});
+		(async () => {
+			try {
+				await updatePresence({
+					projectId: project._id,
+				});
+			} catch (error) {
+				if (error instanceof ConvexError) {
+					console.error("Failed to update presence:", error.data);
+				} else {
+					console.error("Failed to update presence:", error);
+				}
+			}
+		})();
 
 		return () => {
-			removePresence({ projectId: project._id });
+			(async () => {
+				try {
+					await removePresence({ projectId: project._id });
+				} catch (error) {
+					if (error instanceof ConvexError) {
+						console.error("Failed to remove presence:", error.data);
+					} else {
+						console.error("Failed to remove presence:", error);
+					}
+				}
+			})();
 		};
 	}, [project._id, updatePresence, removePresence]);
 

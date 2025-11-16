@@ -1,3 +1,8 @@
+import { generateObject } from "ai";
+import { ConvexError, v } from "convex/values";
+import * as z from "zod";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
 	action,
 	internalMutation,
@@ -5,19 +10,15 @@ import {
 	mutation,
 	query,
 } from "./_generated/server";
-import { ConvexError, v } from "convex/values";
+import { model } from "./ai";
 import { authComponent, createAuth } from "./auth";
-import { generateObject } from "ai";
-import * as z from "zod";
+import { validateProjectAccess } from "./helpers/authorization";
 import {
 	SUBTASK_GENERATOR_SYSTEM_PROMPT,
 	SUBTASK_GENERATOR_USER_PROMPT,
 	TAG_GENERATOR_SYSTEM_PROMPT,
 	TAG_GENERATOR_USER_PROMPT,
 } from "./prompts";
-import { model } from "./ai";
-import { internal } from "./_generated/api";
-import type { Id, Doc } from "./_generated/dataModel";
 
 export const createTask = action({
 	args: {
@@ -80,23 +81,7 @@ export const saveTask = internalMutation({
 		),
 	},
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (project === null) {
-			throw new Error("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
-		}
+		const {  member } = await validateProjectAccess(ctx, args.projectId);
 
 		const now = Date.now();
 
@@ -150,7 +135,7 @@ export const generateSubTasks = action({
 		});
 
 		if (!task) {
-			throw new Error("task not found");
+			throw new ConvexError("task not found");
 		}
 
 		let newSubtaskTitles: string[] = [];
@@ -227,23 +212,7 @@ interface GroupedTasks {
 export const getTasks = query({
 	args: { projectId: v.id("project") },
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (project === null) {
-			throw new Error("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
-		}
+		await validateProjectAccess(ctx, args.projectId);
 
 		const tasks = await ctx.db
 			.query("task")
@@ -307,27 +276,11 @@ export const updateTaskStatus = mutation({
 		),
 	},
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (project === null) {
-			throw new Error("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
-		}
+		const { member } = await validateProjectAccess(ctx, args.projectId);
 
 		const task = await ctx.db.get(args.taskId);
 		if (!task) {
-			throw new Error("task not found");
+			throw new ConvexError("task not found");
 		}
 
 		if (args.newStatus === "done") {
@@ -346,7 +299,8 @@ export const updateTaskStatus = mutation({
 			}
 		}
 
-		await ctx.db.patch(args.taskId, { status: args.newStatus });
+		const now = Date.now();
+		await ctx.db.patch(args.taskId, { status: args.newStatus, updatedAt: now });
 
 		await ctx.db.insert("activityLog", {
 			action:
@@ -367,31 +321,15 @@ export const updateTaskStatus = mutation({
 export const removeTask = mutation({
 	args: { projectId: v.id("project"), taskId: v.id("task") },
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (project === null) {
-			throw new Error("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new Error("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new Error("you cannot access this project");
-		}
+		const { member } = await validateProjectAccess(ctx, args.projectId);
 
 		const task = await ctx.db.get(args.taskId);
 		if (!task) {
-			throw new Error("task not found");
+			throw new ConvexError("task not found");
 		}
 
 		if (member.id !== task.assignee && member.role !== "owner") {
-			throw new Error("you are not the assignee of this task");
+			throw new ConvexError("you are not the assignee of this task");
 		}
 
 		await ctx.db.delete(task._id);

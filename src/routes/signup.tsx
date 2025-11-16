@@ -11,7 +11,6 @@ import * as z from "zod";
 import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
 import { Logo } from "@/components/landing/logo";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";

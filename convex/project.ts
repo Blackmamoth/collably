@@ -1,8 +1,9 @@
-import { action, internalMutation, mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { authComponent, createAuth } from "./auth";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { action, internalMutation, mutation, query } from "./_generated/server";
+import { authComponent, createAuth } from "./auth";
+import { validateProjectAccess } from "./helpers/authorization";
 
 export const createProject = action({
 	args: {
@@ -95,24 +96,7 @@ export const getProjects = query({
 export const getProject = query({
 	args: { projectId: v.id("project") },
 	handler: async (ctx, { projectId }) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(projectId);
-		if (project === null) {
-			throw new ConvexError("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new ConvexError("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new ConvexError("you cannot access this project");
-		}
-
+		const { project } = await validateProjectAccess(ctx, projectId);
 		return project;
 	},
 });
@@ -124,23 +108,7 @@ export const updateProject = mutation({
 		description: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
-
-		const project = await ctx.db.get(args.projectId);
-		if (!project) {
-			throw new ConvexError("project not found");
-		}
-
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new ConvexError("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new ConvexError("you cannot access this project");
-		}
+		const { member } = await validateProjectAccess(ctx, args.projectId);
 
 		if (member.role !== "owner") {
 			throw new ConvexError(
@@ -148,9 +116,11 @@ export const updateProject = mutation({
 			);
 		}
 
+		const now = Date.now();
 		await ctx.db.patch(args.projectId, {
 			name: args.name,
 			description: args.description,
+			updatedAt: now,
 		});
 
 		await ctx.db.insert("activityLog", {
@@ -165,42 +135,45 @@ export const updateProject = mutation({
 export const getProjectStats = query({
 	args: { projectId: v.id("project") },
 	handler: async (ctx, { projectId }) => {
-		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const { _id } = await authComponent.getAuthUser(ctx);
+		await validateProjectAccess(ctx, projectId);
 
-		const project = await ctx.db.get(projectId);
-		if (project === null) {
-			throw new ConvexError("project not found");
-		}
+		// Use indexed queries to fetch tasks by status directly
+		const [allTasks, completedTasks, todoTasks, inprogressTasks, notes] =
+			await Promise.all([
+				ctx.db
+					.query("task")
+					.withIndex("by_project", (q) => q.eq("projectId", projectId))
+					.collect(),
+				ctx.db
+					.query("task")
+					.withIndex("by_project_and_status", (q) =>
+						q.eq("projectId", projectId).eq("status", "done"),
+					)
+					.collect(),
+				ctx.db
+					.query("task")
+					.withIndex("by_project_and_status", (q) =>
+						q.eq("projectId", projectId).eq("status", "todo"),
+					)
+					.collect(),
+				ctx.db
+					.query("task")
+					.withIndex("by_project_and_status", (q) =>
+						q.eq("projectId", projectId).eq("status", "inprogress"),
+					)
+					.collect(),
+				ctx.db
+					.query("element")
+					.withIndex("by_project_and_type", (q) =>
+						q.eq("projectId", projectId).eq("elementType", "note"),
+					)
+					.collect(),
+			]);
 
-		const member = await auth.api.getActiveMember({ headers: headers });
-
-		if (member === null || member.user.id !== _id) {
-			throw new ConvexError("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new ConvexError("you cannot access this project");
-		}
-
-		const tasks = await ctx.db
-			.query("task")
-			.withIndex("by_project", (q) => q.eq("projectId", projectId))
-			.collect();
-
-		const completedTasks = tasks.filter((task) => task.status === "done");
-
-		const pendingTasks = tasks.filter((task) => task.status !== "done");
-
-		const notes = await ctx.db
-			.query("element")
-			.withIndex("by_project_and_type", (q) =>
-				q.eq("projectId", projectId).eq("elementType", "note"),
-			)
-			.collect();
+		const pendingTasks = [...todoTasks, ...inprogressTasks];
 
 		return {
-			total_tasks: tasks.length,
+			total_tasks: allTasks.length,
 			total_completed_tasks: completedTasks.length,
 			total_pending_tasks: pendingTasks.length,
 			total_notes: notes.length,
@@ -214,20 +187,11 @@ export const deleteProject = action({
 		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 		const { _id } = await authComponent.getAuthUser(ctx);
 
-		const project = await ctx.runQuery(api.project.getProject, { projectId });
-
-		if (!project) {
-			throw new ConvexError("project not found");
-		}
-
+		await ctx.runQuery(api.project.getProject, { projectId });
 		const member = await auth.api.getActiveMember({ headers: headers });
 
-		if (member === null || member.user.id !== _id) {
-			throw new ConvexError("you cannot access this project");
-		}
-
-		if (member.organizationId !== project.workspaceId) {
-			throw new ConvexError("you cannot access this project");
+		if (!member) {
+			throw new ConvexError("you are not authorized to delete this project");
 		}
 
 		if (member.role !== "owner") {

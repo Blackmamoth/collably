@@ -10,7 +10,9 @@
 
 import type * as ai from "../ai.js";
 import type * as auth from "../auth.js";
+import type * as constants from "../constants.js";
 import type * as element from "../element.js";
+import type * as helpers_authorization from "../helpers/authorization.js";
 import type * as http from "../http.js";
 import type * as permissions from "../permissions.js";
 import type * as presence from "../presence.js";
@@ -37,7 +39,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   auth: typeof auth;
+  constants: typeof constants;
   element: typeof element;
+  "helpers/authorization": typeof helpers_authorization;
   http: typeof http;
   permissions: typeof permissions;
   presence: typeof presence;
