@@ -1,10 +1,10 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { CheckoutDialog, useCustomer } from "autumn-js/react";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useCustomer, CheckoutDialog } from "autumn-js/react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface Plan {
 	id: string;
@@ -85,6 +85,10 @@ function RouteComponent() {
 
 	const { attach, customer } = useCustomer();
 
+	const currentPlanId = useMemo(() => {
+		return customer?.products[0]?.id || null;
+	}, [customer?.products]);
+
 	return (
 		<div className="min-h-screen bg-background">
 			{/* Header */}
@@ -112,7 +116,7 @@ function RouteComponent() {
 			<div className="max-w-7xl mx-auto px-6 py-16">
 				<div className="grid lg:grid-cols-3 gap-8 mb-12">
 					{plans.map((plan) => {
-						const isCurrent = plan.id === customer?.products[0].id;
+						const isCurrent = plan.id === currentPlanId;
 						const isSelected = plan.id === selectedPlan;
 
 						return (
@@ -184,11 +188,23 @@ function RouteComponent() {
 										onClick={async () => {
 											setSelectedPlan(plan.id);
 											setIsProcessing(true);
-											await attach({
-												productId: plan.id,
-												dialog: CheckoutDialog,
-												successUrl: `${process.env.VITE_APP_HOST}/dashboard/workspace/settings`,
-											});
+											try {
+												console.log(import.meta.env.VITE_APP_HOST);
+												await attach({
+													productId: plan.id,
+													dialog: CheckoutDialog,
+													successUrl: `${import.meta.env.VITE_APP_HOST}/dashboard/workspace/settings`,
+												});
+											} catch (error) {
+												toast.error(
+													error instanceof Error
+														? error.message
+														: "Failed to process plan selection. Please try again.",
+												);
+												setSelectedPlan(null);
+											} finally {
+												setIsProcessing(false);
+											}
 										}}
 									>
 										{isProcessing && isSelected

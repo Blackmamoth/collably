@@ -3,11 +3,12 @@ import {
 	Link,
 	redirect,
 	useRouteContext,
+	useNavigate,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Layers, ArrowRight, Kanban, Building2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import OnboardingStepOne from "@/components/onboarding/step-one";
 import OnboardingStepTwo from "@/components/onboarding/step-two";
 import OnboardingStepThree from "@/components/onboarding/step-three";
@@ -15,6 +16,7 @@ import OnboardingStepFour from "@/components/onboarding/step-four";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { generateSlug } from "@/lib/common/helper";
+import { Logo } from "@/components/landing/logo";
 
 export const Route = createFileRoute("/onboarding")({
 	component: RouteComponent,
@@ -32,40 +34,41 @@ export const Route = createFileRoute("/onboarding")({
 function RouteComponent() {
 	const [currentStep, setCurrentStep] = useState(0);
 	const [workspaceName, setWorkspaceName] = useState("");
+	const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
 	const { user } = useRouteContext({ from: Route.id });
+	const navigate = useNavigate();
 
-	const steps = [
-		{
-			id: "step-one",
-			title: "Welcome to Taskloom",
-			description:
-				"Transform how your team collaborates with real-time boards designed for modern workflows",
-			icon: Layers,
-			content: OnboardingStepOne(),
-		},
-		{
-			id: "step-two",
-			title: "Create Your Workspace",
-			description: "Set up your workspace to get started",
-			icon: Building2,
-			content: OnboardingStepTwo({ workspaceName, setWorkspaceName }),
-		},
-		{
-			id: "step-three",
-			title: "Decision Board",
-			description: "Brainstorm and organize ideas with colorful sticky notes",
-			icon: Layers,
-			content: OnboardingStepThree(),
-		},
-		{
-			id: "step-four",
-			title: "Task Board",
-			description: "Manage tasks with a powerful Kanban board",
-			icon: Kanban,
-			content: OnboardingStepFour(),
-		},
-	];
+	const steps = useMemo(
+		() => [
+			{
+				id: "step-one",
+				title: "Welcome to Collably",
+				description:
+					"Transform how your team collaborates with real-time boards designed for modern workflows",
+				content: OnboardingStepOne(),
+			},
+			{
+				id: "step-two",
+				title: "Create Your Workspace",
+				description: "Set up your workspace to get started",
+				content: OnboardingStepTwo({ workspaceName, setWorkspaceName }),
+			},
+			{
+				id: "step-three",
+				title: "Decision Board",
+				description: "Brainstorm and organize ideas with colorful sticky notes",
+				content: OnboardingStepThree(),
+			},
+			{
+				id: "step-four",
+				title: "Task Board",
+				description: "Manage tasks with a powerful Kanban board",
+				content: OnboardingStepFour(),
+			},
+		],
+		[workspaceName],
+	);
 
 	const progress = ((currentStep + 1) / steps.length) * 100;
 
@@ -73,21 +76,30 @@ function RouteComponent() {
 		if (currentStep >= steps.length - 1) return;
 
 		if (currentStep === 1 && workspaceName.trim() !== "") {
-			const { data, error } = await authClient.organization.create({
-				name: workspaceName,
-				slug: generateSlug(workspaceName),
-				userId: user.id,
-			});
+			setIsCreatingWorkspace(true);
+			try {
+				const { data, error } = await authClient.organization.create({
+					name: workspaceName,
+					slug: generateSlug(workspaceName),
+					userId: user.id,
+				});
 
-			if (error) {
-				toast.error(error?.message || "Workspace could not be created!");
-				return;
+				if (error) {
+					toast.error(
+						error?.message || "Workspace could not be created! Please try again.",
+					);
+					return;
+				}
+
+				if (data) {
+					await authClient.organization.setActive({
+						organizationId: data.id,
+						organizationSlug: data.slug,
+					});
+				}
+			} finally {
+				setIsCreatingWorkspace(false);
 			}
-
-			await authClient.organization.setActive({
-				organizationId: data?.id,
-				organizationSlug: data?.slug,
-			});
 		}
 
 		setCurrentStep(currentStep + 1);
@@ -100,8 +112,7 @@ function RouteComponent() {
 	};
 
 	const handleSkip = () => {
-		// Navigate to dashboard
-		window.location.href = "/dashboard";
+		navigate({ to: "/dashboard" });
 	};
 
 	const canProceed = currentStep !== 1 || workspaceName.trim() !== "";
@@ -111,14 +122,7 @@ function RouteComponent() {
 			{/* Header */}
 			<div className="border-b border-border">
 				<div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-							<Layers className="w-5 h-5 text-primary-foreground" />
-						</div>
-						<span className="text-xl font-semibold tracking-tight">
-							Taskloom
-						</span>
-					</div>
+					<Logo size="md" />
 					<Button variant="ghost" onClick={handleSkip}>
 						Skip
 					</Button>
@@ -161,14 +165,23 @@ function RouteComponent() {
 
 						<div className="flex items-center gap-3">
 							{currentStep > 0 && (
-								<Button variant="outline" onClick={handlePrevious}>
+								<Button
+									variant="outline"
+									onClick={handlePrevious}
+									disabled={isCreatingWorkspace}
+								>
 									Previous
 								</Button>
 							)}
 							{currentStep < steps.length - 1 ? (
-								<Button onClick={handleNext} disabled={!canProceed}>
-									Next
-									<ArrowRight className="w-4 h-4 ml-2" />
+								<Button
+									onClick={handleNext}
+									disabled={!canProceed || isCreatingWorkspace}
+								>
+									{isCreatingWorkspace ? "Creating..." : "Next"}
+									{!isCreatingWorkspace && (
+										<ArrowRight className="w-4 h-4 ml-2" />
+									)}
 								</Button>
 							) : (
 								<Link to="/dashboard">

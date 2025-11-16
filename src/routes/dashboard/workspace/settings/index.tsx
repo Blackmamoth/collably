@@ -1,16 +1,24 @@
+import { useForm } from "@tanstack/react-form";
 import {
 	createFileRoute,
 	Link,
 	redirect,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { useCustomer } from "autumn-js/react";
+import { api } from "convex/_generated/api";
+import { useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
+import {
+	ArrowLeft,
+	Download,
+	ExternalLink,
+	Users,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import * as z from "zod";
+import { NoWorkspacesEmpty } from "@/components/empty-states";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -22,6 +30,20 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import {
 	Table,
 	TableBody,
@@ -30,32 +52,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import {
-	ArrowLeft,
-	Download,
-	ExternalLink,
-	UserCog,
-	Users,
-} from "lucide-react";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { NoWorkspacesEmpty } from "@/components/empty-states";
-import { Progress } from "@/components/ui/progress";
-import { useCustomer } from "autumn-js/react";
-import { useWorkspace } from "@/lib/workspace-context";
-import { formatDateUntil } from "@/lib/common/helper";
-import { useForm } from "@tanstack/react-form";
-import * as z from "zod";
 import { authClient } from "@/lib/auth-client";
-import { toast } from "sonner";
-import { useMutation } from "convex/react";
-import { api } from "convex/_generated/api";
-import { ConvexError } from "convex/values";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const schema = z.object({
 	workspaceName: z.string().min(1, "name is required"),
@@ -64,6 +62,24 @@ const schema = z.object({
 			"Slug must be a lowercase string with alphanumeric characters and hyphens",
 	}),
 });
+
+const tabs = [
+	{ id: "general", label: "General" },
+	{ id: "members", label: "Members" },
+	{ id: "billing", label: "Billing" },
+	{ id: "danger", label: "Danger Zone" },
+] as const;
+
+const plans = {
+	free: {
+		price: "$0",
+		billingCycle: "monthly",
+	},
+	pro: {
+		price: "$12",
+		billingCycle: "monthly",
+	},
+} as const;
 
 export const Route = createFileRoute("/dashboard/workspace/settings/")({
 	component: RouteComponent,
@@ -80,12 +96,6 @@ export const Route = createFileRoute("/dashboard/workspace/settings/")({
 
 function RouteComponent() {
 	const [activeTab, setActiveTab] = useState("general");
-	const [workspaceName, setWorkspaceName] = useState("Acme Inc");
-	const [workspaceSlug, setWorkspaceSlug] = useState("acme-inc");
-	const [workspaceDescription, setWorkspaceDescription] = useState(
-		"A collaborative workspace for the Acme team",
-	);
-
 	const [hasWorkspace, setHasWorkspace] = useState(true); // Set to true to show content
 	const [isSaving, setIsSaving] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
@@ -95,6 +105,10 @@ function RouteComponent() {
 
 	const workspace = useWorkspace();
 	const deleteWorkspace = useMutation(api.workspace.deleteWorkspace);
+
+	const currentProduct = useMemo(() => {
+		return customer?.products?.[0] ?? null;
+	}, [customer?.products]);
 
 	useEffect(() => {
 		if (!workspace) {
@@ -114,43 +128,42 @@ function RouteComponent() {
 		},
 		onSubmit: async ({ value }) => {
 			setIsSaving(true);
-			const { data, error } =
-				await authClient.organization.getActiveMemberRole();
-			if (error !== null) {
-				toast.error("Could not fetch current member's role", {
-					description: error.message || "",
+			try {
+				const { data, error } =
+					await authClient.organization.getActiveMemberRole();
+				if (error !== null) {
+					toast.error("Could not fetch current member's role", {
+						description: error.message || "",
+					});
+					return;
+				}
+
+				if (data.role !== "owner") {
+					toast.error("Only the owner can modify workspace details!");
+					return;
+				}
+
+				await authClient.organization.update({
+					data: { name: value.workspaceName, slug: value.workspaceSlug },
+					organizationId: workspace?.id,
 				});
-				return;
+				toast.success("Workspace updated successfully");
+			} catch {
+				toast.error("Failed to update workspace. Please try again.");
+			} finally {
+				setIsSaving(false);
 			}
-
-			if (data.role !== "owner") {
-				toast.error("Only the owner can modify workspace details!");
-				return;
-			}
-
-			await authClient.organization.update({
-				data: { name: value.workspaceName, slug: value.workspaceSlug },
-				organizationId: workspace?.id,
-			});
-			setIsSaving(false);
 		},
 	});
 
-	const plans = {
-		free: {
-			price: "$0",
-			billingCycle: "monthly",
-		},
-		pro: {
-			price: "$12",
-			billingCycle: "monthly",
-		},
-	};
-
 	const handleManageBilling = async () => {
-		await openBillingPortal({
-			returnUrl: `${process.env.VITE_APP_HOST}/dashboard/workspace/settings`,
-		});
+		try {
+			await openBillingPortal({
+				returnUrl: `${process.env.VITE_APP_HOST}/dashboard/workspace/settings`,
+			});
+		} catch {
+			toast.error("Failed to open billing portal. Please try again.");
+		}
 	};
 
 	const handleUpgrade = () => {
@@ -168,13 +181,6 @@ function RouteComponent() {
 			</div>
 		);
 	}
-
-	const tabs = [
-		{ id: "general", label: "General" },
-		{ id: "members", label: "Members" },
-		{ id: "billing", label: "Billing" },
-		{ id: "danger", label: "Danger Zone" },
-	];
 
 	const handleDelete = async () => {
 		setIsDeleting(true);
@@ -377,41 +383,49 @@ function RouteComponent() {
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="space-y-6">
-										<div className="flex items-start justify-between">
-											<div>
-												<div className="flex items-center gap-2 mb-1">
-													<h3 className="font-semibold text-lg">
-														{customer?.products[0].name} Plan
-													</h3>
-													<Badge
-														variant={
-															customer?.products[0].status === "active"
-																? "default"
-																: "secondary"
-														}
-													>
-														{customer?.products[0]?.status}
-													</Badge>
-												</div>
-												<p className="text-sm text-muted-foreground mb-2">
-													{plans[customer?.products[0].id].price} / month
-												</p>
-												{customer?.products[0].current_period_end && (
-													<p className="text-xs text-muted-foreground">
-														{`Next billing date: ${new Date(customer?.products[0].current_period_end).toLocaleDateString()}`}
+										{currentProduct ? (
+											<div className="flex items-start justify-between">
+												<div>
+													<div className="flex items-center gap-2 mb-1">
+														<h3 className="font-semibold text-lg">
+															{currentProduct.name} Plan
+														</h3>
+														<Badge
+															variant={
+																currentProduct.status === "active"
+																	? "default"
+																	: "secondary"
+															}
+														>
+															{currentProduct.status}
+														</Badge>
+													</div>
+													<p className="text-sm text-muted-foreground mb-2">
+														{currentProduct.id in plans
+															? `${plans[currentProduct.id as keyof typeof plans].price} / month`
+															: "N/A"}
 													</p>
-												)}
+													{currentProduct.current_period_end && (
+														<p className="text-xs text-muted-foreground">
+															{`Next billing date: ${new Date(currentProduct.current_period_end).toLocaleDateString()}`}
+														</p>
+													)}
+												</div>
+												<div className="flex gap-2">
+													<Button variant="outline" onClick={handleUpgrade}>
+														Change plan
+													</Button>
+													<Button variant="outline" onClick={handleManageBilling}>
+														<ExternalLink className="w-4 h-4 mr-2" />
+														Manage
+													</Button>
+												</div>
 											</div>
-											<div className="flex gap-2">
-												<Button variant="outline" onClick={handleUpgrade}>
-													Change plan
-												</Button>
-												<Button variant="outline" onClick={handleManageBilling}>
-													<ExternalLink className="w-4 h-4 mr-2" />
-													Manage
-												</Button>
+										) : (
+											<div className="text-center py-4 text-muted-foreground">
+												No active subscription
 											</div>
-										</div>
+										)}
 									</CardContent>
 								</Card>
 

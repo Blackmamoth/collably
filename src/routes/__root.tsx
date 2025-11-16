@@ -1,24 +1,24 @@
-import {
-	HeadContent,
-	Scripts,
-	createRootRouteWithContext,
-	useRouteContext,
-} from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { TanStackDevtools } from "@tanstack/react-devtools";
-import { ThemeProvider } from "next-themes";
-import { createServerFn } from "@tanstack/react-start";
-import type { QueryClient } from "@tanstack/react-query";
-import type { ConvexQueryClient } from "@convex-dev/react-query";
-import type { ConvexReactClient } from "convex/react";
-import { getCookie, getRequest } from "@tanstack/react-start/server";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import {
 	fetchSession,
 	getCookieName,
 } from "@convex-dev/better-auth/react-start";
-import { authClient } from "@/lib/auth-client";
+import type { ConvexQueryClient } from "@convex-dev/react-query";
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import type { QueryClient } from "@tanstack/react-query";
+import {
+	createRootRouteWithContext,
+	HeadContent,
+	Scripts,
+	useRouteContext,
+} from "@tanstack/react-router";
+import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { createServerFn } from "@tanstack/react-start";
+import { getCookie, getRequest } from "@tanstack/react-start/server";
 import { AutumnProvider } from "autumn-js/react";
+import type { ConvexReactClient } from "convex/react";
+import { ThemeProvider } from "next-themes";
+import { authClient } from "@/lib/auth-client";
 
 // Import Geist fonts
 import "@fontsource/geist-sans/400.css";
@@ -30,11 +30,11 @@ import "@fontsource/geist-mono/500.css";
 import "@fontsource/geist-mono/600.css";
 import "@fontsource/geist-mono/700.css";
 
-// Import your globals.css (copy from Taskloom project)
-import appCss from "../styles.css?url";
 import NotFound from "@/components/not-found";
 import { Toaster } from "@/components/ui/sonner";
 import { WorkspaceProvider } from "@/lib/workspace-context";
+// Import your globals.css (copy from Taskloom project)
+import appCss from "../styles.css?url";
 
 const fetchAuth = createServerFn({ method: "GET" }).handler(async () => {
 	try {
@@ -47,9 +47,9 @@ const fetchAuth = createServerFn({ method: "GET" }).handler(async () => {
 			session: session?.session,
 			token,
 		};
-	} catch (error) {
+	} catch (error: unknown) {
 		console.error(error);
-		return { user: undefined, session: undefined };
+		return { user: undefined, session: undefined, token: undefined };
 	}
 });
 

@@ -1,6 +1,6 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -74,26 +74,49 @@ function RouteComponent() {
 
 	const workspace = useWorkspace();
 
-	const handleViewProfile = (member: WorkspaceMember) => {
+	const filteredMembers = useMemo(() => {
+		if (!workspaceMembers?.members) return [];
+
+		let members = workspaceMembers.members;
+
+		// Filter by search query
+		if (searchQuery.trim()) {
+			const query = searchQuery.toLowerCase();
+			members = members.filter(
+				(member) =>
+					member.user.name.toLowerCase().includes(query) ||
+					member.user.email.toLowerCase().includes(query),
+			);
+		}
+
+		// Filter by role
+		if (roleFilter !== "all") {
+			members = members.filter((member) => member.role === roleFilter);
+		}
+
+		return members;
+	}, [workspaceMembers?.members, searchQuery, roleFilter]);
+
+	const handleViewProfile = useCallback((member: WorkspaceMember) => {
 		setSelectedMember(member);
 		setViewProfileOpen(true);
-	};
+	}, []);
 
-	const handleChangeRole = (member: WorkspaceMember) => {
+	const handleChangeRole = useCallback((member: WorkspaceMember) => {
 		setSelectedMember(member);
 		setSelectedRole(member.role);
 		setChangeRoleOpen(true);
-	};
+	}, []);
 
-	const handleRemoveMember = (member: WorkspaceMember) => {
+	const handleRemoveMember = useCallback((member: WorkspaceMember) => {
 		setSelectedMember(member);
 		setRemoveDialogOpen(true);
-	};
+	}, []);
 
-	const handleCancelInvite = (invite: Invitation) => {
+	const handleCancelInvite = useCallback((invite: Invitation) => {
 		setSelectedInvite(invite);
 		setCancelInviteOpen(true);
-	};
+	}, []);
 
 	return (
 		<div className="flex-1 space-y-6 p-6">
@@ -158,13 +181,13 @@ function RouteComponent() {
 								Total Members
 							</p>
 							<p className="text-2xl font-bold">
-								{workspaceMembers?.members.length}
+								{workspaceMembers?.members.length || 0}
 							</p>
 						</div>
 						<div className="p-4 border border-border rounded-lg">
 							<p className="text-sm text-muted-foreground mb-1">Active</p>
 							<p className="text-2xl font-bold">
-								{workspaceMembers?.members.length}
+								{workspaceMembers?.members.length || 0}
 							</p>
 						</div>
 						<div className="p-4 border border-border rounded-lg">
@@ -202,7 +225,7 @@ function RouteComponent() {
 										</tr>
 									</thead>
 									<tbody>
-										{workspaceMembers?.members.length === 0 ? (
+										{filteredMembers.length === 0 ? (
 											<tr>
 												<td
 													colSpan={4}
@@ -212,7 +235,7 @@ function RouteComponent() {
 												</td>
 											</tr>
 										) : (
-											workspaceMembers?.members.map((member) => (
+											filteredMembers.map((member) => (
 												<tr
 													key={member.id}
 													className="border-t border-border hover:bg-muted/50 transition-colors"

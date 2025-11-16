@@ -7,7 +7,7 @@ export default function OnboardingStepOne() {
 				<Layers className="w-10 h-10 text-primary" />
 			</div>
 			<div className="space-y-3 text-center max-w-md mx-auto">
-				<h2 className="text-3xl font-bold">Welcome to Taskloom</h2>
+				<h2 className="text-3xl font-bold">Welcome to Collably</h2>
 				<p className="text-muted-foreground leading-relaxed">
 					Transform how your team collaborates with real-time boards designed
 					for modern workflows

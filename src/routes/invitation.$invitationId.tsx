@@ -1,22 +1,23 @@
 import {
 	createFileRoute,
-	useNavigate,
-	useParams,
 	Link,
 	redirect,
+	useNavigate,
+	useParams,
 } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { useCustomer } from "autumn-js/react";
+import type { Invitation } from "better-auth/plugins";
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+	AlertCircle,
+	Building2,
+	CheckCircle2,
+	Clock,
+	Layers,
+	Mail,
+	XCircle,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -27,25 +28,37 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-	Layers,
-	Mail,
-	Building2,
-	Clock,
-	CheckCircle2,
-	XCircle,
-	AlertCircle,
-} from "lucide-react";
-import type { Invitation } from "better-auth/plugins";
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth-client";
-import { toast } from "sonner";
 import { formatDateUntil } from "@/lib/common/helper";
-import { useCustomer } from "autumn-js/react";
 
 interface WorkspaceInvitation extends Invitation {
 	organizationName: string;
 	organizationSlug: string;
 	inviterEmail: string;
+}
+
+const getRoleDescription = (role: string) => {
+	switch (role) {
+		case "owner":
+			return "Full access to all workspace settings and billing";
+		case "admin":
+			return "Can manage projects and invite team members";
+		case "member":
+			return "Can view and edit projects";
+		default:
+			return ""
+	}
 }
 
 export const Route = createFileRoute("/invitation/$invitationId")({
@@ -74,12 +87,16 @@ function RouteComponent() {
 	const { track } = useCustomer();
 
 	useEffect(() => {
+		let isCancelled = false;
+
 		const fetchInvitationDetails = async () => {
 			const { data, error } = await authClient.organization.getInvitation({
 				query: {
 					id: invitationId,
 				},
 			})
+
+			if (isCancelled) return;
 
 			if (error !== null || data === null) {
 				setInvitation(null);
@@ -92,21 +109,27 @@ function RouteComponent() {
 		}
 
 		fetchInvitationDetails();
+
+		return () => {
+			isCancelled = true;
+		};
 	}, [invitationId]);
 
 	const handleAccept = async () => {
 		setIsAccepting(true);
+		try {
+			const { data, error } = await authClient.organization.acceptInvitation({
+				invitationId,
+			})
 
-		const { data, error } = await authClient.organization.acceptInvitation({
-			invitationId,
-		})
+			if (error !== null || data === null) {
+				toast.error(
+					error.message ||
+						"An error occurred while accepting the invitation, please try again!",
+				)
+				return;
+			}
 
-		if (error !== null || data === null) {
-			toast.error(
-				error.message ||
-					"An error occured while accepting the invitation, please try again!",
-			)
-		} else {
 			toast.success("Welcome to your new workspace!");
 
 			await authClient.organization.setActive({
@@ -116,42 +139,31 @@ function RouteComponent() {
 			await track({ featureId: "members", value: 1 });
 
 			navigate({ to: "/dashboard" });
+		} finally {
+			setIsAccepting(false);
 		}
-
-		setIsAccepting(false);
 	}
 
 	const handleDecline = async () => {
 		setIsAccepting(true);
+		try {
+			const { data, error } = await authClient.organization.rejectInvitation({
+				invitationId,
+			})
 
-		const { data, error } = await authClient.organization.rejectInvitation({
-			invitationId,
-		})
+			if (error !== null || data === null) {
+				toast.error(
+					error.message ||
+						"An error occurred while declining the invitation, please try again!",
+				)
+				return;
+			}
 
-		if (error !== null || data === null) {
-			toast.error(
-				error.message ||
-					"An error occured while accepting the invitation, please try again!",
-			)
-		} else {
 			toast.info("You've declined the invitation from this workspace!");
 
 			navigate({ to: "/dashboard" });
-		}
-
-		setIsAccepting(false);
-	}
-
-	const getRoleDescription = (role: string) => {
-		switch (role) {
-			case "owner":
-				return "Full access to all workspace settings and billing";
-			case "admin":
-				return "Can manage projects and invite team members";
-			case "member":
-				return "Can view and edit projects";
-			default:
-				return ""
+		} finally {
+			setIsAccepting(false);
 		}
 	}
 
@@ -258,7 +270,7 @@ function RouteComponent() {
 							{invitation.organizationName}.
 						</p>
 						<Button asChild>
-							<Link to={"/dashboard"}>"Go to Dashboard"</Link>
+							<Link to="/dashboard">Go to Dashboard</Link>
 						</Button>
 					</CardContent>
 				</Card>
@@ -290,10 +302,7 @@ function RouteComponent() {
 						<div className="flex items-center gap-4 p-4 border border-border rounded-lg bg-muted/30">
 							<Avatar className="w-12 h-12">
 								<AvatarFallback>
-									{invitation.inviterEmail
-										.split(" ")
-										.map((n) => n[0].toUpperCase())
-										.join("")}
+									{invitation.inviterEmail[0]?.toUpperCase() || "?"}
 								</AvatarFallback>
 							</Avatar>
 							<div className="flex-1 min-w-0">

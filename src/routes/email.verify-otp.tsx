@@ -1,5 +1,8 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, redirect, useNavigate, useSearch } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Logo } from "@/components/landing/logo";
 import { Button } from "@/components/ui/button";
 import {
 	InputOTP,
@@ -7,9 +10,7 @@ import {
 	InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
-import { Layers, ArrowLeft } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { useSearch } from "@tanstack/react-router";
 
 interface SearchParams {
 	email: string;
@@ -17,6 +18,13 @@ interface SearchParams {
 
 export const Route = createFileRoute("/email/verify-otp")({
 	component: RouteComponent,
+	beforeLoad: ({ context }) => {
+		const { user } = context;
+
+		if (user !== undefined) {
+			throw redirect({ to: "/dashboard" });
+		}
+	},
 	validateSearch: (search: Record<string, unknown>): SearchParams => {
 		return {
 			email: (search.email as string) || "",
@@ -25,45 +33,82 @@ export const Route = createFileRoute("/email/verify-otp")({
 });
 
 function RouteComponent() {
-	// const {} = useRouteContext({ from: Route.id });
-
 	const { email } = useSearch({ from: Route.id });
-
 	const navigate = useNavigate();
-
-	if (!email) {
-		navigate({ to: "/" });
-	}
 
 	const [otp, setOtp] = useState("");
 	const [isVerifying, setIsVerifying] = useState(false);
+	const [isResending, setIsResending] = useState(false);
+
+	useEffect(() => {
+		if (!email) {
+			navigate({ to: "/" });
+		}
+	}, [email, navigate]);
 
 	const handleVerifyOtp = async (e: React.FormEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
+		
+		if (otp.length < 6) return;
+
 		setIsVerifying(true);
+		try {
+			const { error } = await authClient.emailOtp.verifyEmail({ email, otp });
 
-		await authClient.emailOtp.verifyEmail({ email, otp });
+			if (error) {
+				toast.error(
+					error.message || "Invalid verification code. Please try again.",
+				);
+				return;
+			}
 
-		navigate({ to: "/dashboard" });
+			toast.success("Email verified successfully!");
+			navigate({ to: "/dashboard" });
+		} catch {
+			toast.error("An error occurred during verification. Please try again.");
+		} finally {
+			setIsVerifying(false);
+		}
 	};
 
-	const handleResendOtp = () => {
-		console.log("[v0] Resending OTP to:", email);
-		setOtp("");
+	const handleResendOtp = async () => {
+		if (!email) return;
+
+		setIsResending(true);
+		try {
+			const { error } = await authClient.emailOtp.sendVerificationOtp({
+				email,
+				type: "email-verification",
+			});
+
+			if (error) {
+				toast.error(
+					error.message ||
+						"Failed to resend verification code. Please try again.",
+				);
+				return;
+			}
+
+			toast.success("Verification code sent! Please check your email.");
+			setOtp("");
+		} catch {
+			toast.error("An error occurred. Please try again.");
+		} finally {
+			setIsResending(false);
+		}
 	};
+
+	if (!email) {
+		return null;
+	}
 
 	return (
 		<div className="min-h-screen flex items-center justify-center px-6 py-12 bg-background">
 			<div className="w-full max-w-md">
-				<Link to="/" className="flex items-center justify-center gap-2 mb-8">
-					<div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-						<Layers className="w-6 h-6 text-primary-foreground" />
-					</div>
-					<span className="text-2xl font-semibold tracking-tight">
-						Collably
-					</span>
-				</Link>
+				<div className="flex items-center justify-center mb-8">
+					<Logo size="lg" />
+				</div>
 
 				<div className="bg-card border border-border rounded-lg p-8">
 					<Button
@@ -119,10 +164,11 @@ function RouteComponent() {
 							Didn't receive the code?{" "}
 							<button
 								type="button"
-								className="text-foreground hover:underline font-medium"
+								className="text-foreground hover:underline font-medium disabled:opacity-50 disabled:cursor-not-allowed"
 								onClick={handleResendOtp}
+								disabled={isResending}
 							>
-								Resend
+								{isResending ? "Sending..." : "Resend"}
 							</button>
 						</p>
 					</div>

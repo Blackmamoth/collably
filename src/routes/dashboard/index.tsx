@@ -3,7 +3,7 @@ import {
 	redirect,
 	useRouteContext,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "convex/_generated/api";
 import DashboardSidebar from "@/components/dashboard/sidebar";
@@ -37,6 +37,10 @@ function RouteComponent() {
 
 	const { user } = useRouteContext({ from: Route.id });
 
+	const firstName = useMemo(() => {
+		return user.name.split(" ")[0];
+	}, [user.name]);
+
 	const workspaces = useQuery(api.workspace.getWorkspaces) || [];
 	const projects =
 		useQuery(api.project.getProjects, {
@@ -65,7 +69,7 @@ function RouteComponent() {
 						{/* Header */}
 						<div>
 							<h1 className="text-3xl font-bold mb-2">
-								Welcome back, {user.name.split(" ")[0]}
+								Welcome back, {firstName}
 							</h1>
 							<p className="text-muted-foreground">
 								Here's what's happening with your projects today

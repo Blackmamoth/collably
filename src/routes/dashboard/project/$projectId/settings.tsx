@@ -54,6 +54,13 @@ const schema = z.object({
 	description: z.string().or(z.literal("")),
 });
 
+const tabs = [
+	{ id: "general", label: "General" },
+	{ id: "members", label: "Members" },
+	{ id: "permissions", label: "Permissions" },
+	{ id: "archive", label: "Archive" },
+] as const;
+
 export const Route = createFileRoute("/dashboard/project/$projectId/settings")({
 	component: RouteComponent,
 	beforeLoad: async ({ context, params }) => {
@@ -69,7 +76,7 @@ export const Route = createFileRoute("/dashboard/project/$projectId/settings")({
 				projectId: projectId as Id<"project">,
 			});
 			return { user };
-		} catch (error) {
+		} catch (error: unknown) {
 			throw redirect({ to: "/dashboard" });
 		}
 	},
@@ -80,13 +87,6 @@ function RouteComponent() {
 	const [isPublic, setIsPublic] = useState(false);
 	const [allowComments, setAllowComments] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
-
-	const tabs = [
-		{ id: "general", label: "General" },
-		{ id: "members", label: "Members" },
-		{ id: "permissions", label: "Permissions" },
-		{ id: "archive", label: "Archive" },
-	];
 
 	const { projectId } = useParams({ from: Route.id });
 
@@ -119,15 +119,18 @@ function RouteComponent() {
 			onChange: schema,
 		},
 		onSubmit: async ({ value }) => {
+			setIsSaving(true);
 			try {
-				setIsSaving(true);
 				await updateProject({
 					...value,
 					projectId: projectId as Id<"project">,
 				});
+				toast.success("Project updated successfully");
 			} catch (error) {
 				if (error instanceof ConvexError) {
 					toast.error(error.data);
+				} else {
+					toast.error("Failed to update project. Please try again.");
 				}
 			} finally {
 				setIsSaving(false);

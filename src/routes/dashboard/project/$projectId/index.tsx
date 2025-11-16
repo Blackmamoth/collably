@@ -48,7 +48,7 @@ export const Route = createFileRoute("/dashboard/project/$projectId/")({
 				projectId: projectId as Id<"project">,
 			});
 			return { project };
-		} catch (error) {
+		} catch (error: unknown) {
 			throw redirect({ to: "/dashboard" });
 		}
 	},
@@ -252,9 +252,9 @@ function RouteComponent() {
 							<div>
 								<h2 className="text-lg font-semibold mb-4">Team Members</h2>
 								<Card className="divide-y divide-border">
-									{workspaceMembers?.members?.map((member, idx) => (
+									{workspaceMembers?.members?.map((member) => (
 										<div
-											key={idx}
+											key={member.id}
 											className="p-4 flex items-center justify-between"
 										>
 											<div className="flex items-center gap-3">

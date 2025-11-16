@@ -18,19 +18,19 @@ import {
 import { ArrowLeft, Upload } from "lucide-react";
 import { RiGithubLine, RiGoogleFill } from "react-icons/ri";
 
+const tabs = [
+	{ id: "profile", label: "Profile" },
+	{ id: "account", label: "Account" },
+	{ id: "notifications", label: "Notifications" },
+	{ id: "preferences", label: "Preferences" },
+] as const;
+
 export const Route = createFileRoute("/dashboard/settings")({
 	component: RouteComponent,
 });
 
 function RouteComponent() {
 	const [activeTab, setActiveTab] = useState("profile");
-
-	const tabs = [
-		{ id: "profile", label: "Profile" },
-		{ id: "account", label: "Account" },
-		{ id: "notifications", label: "Notifications" },
-		{ id: "preferences", label: "Preferences" },
-	]
 
 	return (
 		<div className="min-h-screen bg-background">
