@@ -1,32 +1,49 @@
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronRight, Sparkles, ThumbsUp } from "lucide-react";
-import type { SetStateAction } from "react";
-import type {
-	BoardElement,
-	CanvasElement,
-	LiveCursor,
-	StickyNoteElement,
-} from "@/lib/common/types";
+import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
+import { useAction, useQuery } from "convex/react";
+import { ChevronRight, Loader2, Sparkles, ThumbsUp } from "lucide-react";
+import { type SetStateAction, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import type { BoardElement, LiveCursor } from "@/lib/common/types";
 
 interface Props {
 	liveCursors: LiveCursor[];
 	elements: BoardElement[];
+	projectId: Id<"project">;
 	setSelectedElement: React.Dispatch<SetStateAction<Id<"element"> | null>>;
 	setShowAISummary: React.Dispatch<SetStateAction<boolean>>;
 }
 
 export default function AISummarySidebar({
-	liveCursors,
+	liveCursors: _liveCursors,
 	elements,
+	projectId,
 	setSelectedElement,
 	setShowAISummary,
 }: Props) {
+	const [isGenerating, setIsGenerating] = useState(false);
+	const generateSummary = useAction(api.element.generateBoardSummary);
+	const summary = useQuery(api.element.getBoardSummary, { projectId });
+
+	const handleGenerateSummary = async () => {
+		setIsGenerating(true);
+		try {
+			await generateSummary({ projectId });
+			toast.success("Summary generated successfully");
+		} catch (error) {
+			console.error("Failed to generate summary:", error);
+			toast.error("Failed to generate summary. Please try again.");
+		} finally {
+			setIsGenerating(false);
+		}
+	};
+
 	return (
-		<div className="w-80 border-l border-border bg-card flex flex-col">
-			<div className="p-4 border-b border-border flex items-center justify-between">
+		<div className="w-80 border-l border-border bg-card flex flex-col h-full">
+			<div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
 				<div className="flex items-center gap-2">
 					<Sparkles className="w-5 h-5 text-primary" />
 					<h2 className="font-semibold">AI Insights</h2>
@@ -39,14 +56,19 @@ export default function AISummarySidebar({
 					<ChevronRight className="w-5 h-5" />
 				</Button>
 			</div>
-			<ScrollArea className="flex-1 p-4">
-				<div className="space-y-4">
+			<ScrollArea className="flex-1 min-h-0">
+				<div className="space-y-4 p-4">
 					<div>
 						<h3 className="text-sm font-semibold mb-2">Board Summary</h3>
-						<p className="text-sm text-muted-foreground leading-relaxed">
-							Your board contains {elements.length} elements. The team is
-							actively collaborating with {liveCursors.length} members online.
-						</p>
+						{summary === undefined ? (
+							<p className="text-sm text-muted-foreground leading-relaxed">
+								Loading...
+							</p>
+						) : summary.length > 0 ? (
+							<p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+								{summary}
+							</p>
+						) : null}
 					</div>
 
 					<Separator />
@@ -81,9 +103,29 @@ export default function AISummarySidebar({
 
 					<Separator />
 
-					<Button variant="outline" className="w-full bg-transparent" size="sm">
-						<Sparkles className="w-4 h-4 mr-2" />
-						Generate Summary
+					<Button
+						variant="outline"
+						className="w-full bg-transparent"
+						size="sm"
+						onClick={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							handleGenerateSummary();
+						}}
+						disabled={isGenerating}
+						type="button"
+					>
+						{isGenerating ? (
+							<>
+								<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+								Generating...
+							</>
+						) : (
+							<>
+								<Sparkles className="w-4 h-4 mr-2" />
+								Generate Summary
+							</>
+						)}
 					</Button>
 				</div>
 			</ScrollArea>

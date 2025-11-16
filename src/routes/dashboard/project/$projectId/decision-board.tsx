@@ -1569,6 +1569,7 @@ function RouteComponent() {
 					<AISummarySidebar
 						elements={elements}
 						liveCursors={liveCursors}
+						projectId={params.projectId as Id<"project">}
 						setSelectedElement={setSelectedElement}
 						setShowAISummary={setShowAISummary}
 					/>

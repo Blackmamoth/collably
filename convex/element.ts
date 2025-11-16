@@ -1,7 +1,14 @@
+import { generateText } from "ai";
 import { ConvexError, v } from "convex/values";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { action, internalMutation, mutation, query } from "./_generated/server";
+import { model } from "./ai";
 import { validateProjectAccess } from "./helpers/authorization";
+import {
+	BOARD_SUMMARY_SYSTEM_PROMPT,
+	BOARD_SUMMARY_USER_PROMPT,
+} from "./prompts";
 
 export const getElements = query({
 	args: { projectId: v.id("project") },
@@ -245,5 +252,111 @@ export const toggleVote = mutation({
 			});
 			return newVoteCount;
 		}
+	},
+});
+
+export const getBoardSummary = query({
+	args: { projectId: v.id("project") },
+	handler: async (ctx, { projectId }) => {
+		await validateProjectAccess(ctx, projectId);
+
+		const summary = await ctx.db
+			.query("aiSummary")
+			.withIndex("by_project", (q) => q.eq("projectId", projectId))
+			.first();
+
+		return summary?.summary || "";
+	},
+});
+
+export const saveBoardSummary = internalMutation({
+	args: {
+		projectId: v.id("project"),
+		summary: v.string(),
+	},
+	handler: async (ctx, { projectId, summary }) => {
+		const now = Date.now();
+
+		// Check if summary already exists
+		const existing = await ctx.db
+			.query("aiSummary")
+			.withIndex("by_project", (q) => q.eq("projectId", projectId))
+			.first();
+
+		if (existing) {
+			await ctx.db.patch(existing._id, {
+				summary,
+				lastGeneratedAt: now,
+				updatedAt: now,
+			});
+		} else {
+			await ctx.db.insert("aiSummary", {
+				projectId,
+				summary,
+				lastGeneratedAt: now,
+				createdAt: now,
+				updatedAt: now,
+			});
+		}
+	},
+});
+
+export const generateBoardSummary = action({
+	args: { projectId: v.id("project") },
+	handler: async (ctx, { projectId }) => {
+		// Validate access by querying elements (which validates access)
+		const elements = await ctx.runQuery(api.element.getElements, {
+			projectId,
+		});
+
+		// Format elements data for AI
+		const notesAndStickies = elements.filter(
+			(el) => el.elementType === "note" || el.elementType === "sticky",
+		);
+
+		if (notesAndStickies.length === 0) {
+			// If no notes/stickies, save empty summary
+			await ctx.runMutation(internal.element.saveBoardSummary, {
+				projectId,
+				summary: "",
+			});
+			return "";
+		}
+
+		// Format elements data
+		const elementsData = notesAndStickies
+			.map((el) => {
+				const content = el.content || "";
+				const votes = el.votes || 0;
+				const comments = el.commentCount || 0;
+				return `- ${content} (${votes} votes, ${comments} comments)`;
+			})
+			.join("\n");
+
+		let summary = "";
+
+		try {
+			const { text } = await generateText({
+				model,
+				system: BOARD_SUMMARY_SYSTEM_PROMPT,
+				prompt: BOARD_SUMMARY_USER_PROMPT.replace(
+					"{ELEMENTS_DATA}",
+					elementsData,
+				),
+			});
+
+			summary = text;
+		} catch (error) {
+			console.error("Failed to generate board summary:", error);
+			summary = "";
+		}
+
+		// Save summary
+		await ctx.runMutation(internal.element.saveBoardSummary, {
+			projectId,
+			summary,
+		});
+
+		return summary;
 	},
 });

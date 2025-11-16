@@ -120,7 +120,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 								disableTransitionOnChange
 							>
 								{children}
-								<TanStackDevtools
+								{import.meta.env.NODE_ENV !== "production" && <TanStackDevtools
 									config={{
 										position: "bottom-right",
 									}}
@@ -130,7 +130,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 											render: <TanStackRouterDevtoolsPanel />,
 										},
 									]}
-								/>
+								/>}
 								<Toaster
 									position="bottom-right"
 									expand={false}
