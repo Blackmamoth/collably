@@ -1,19 +1,11 @@
 import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type { ElementType } from "@/lib/common/types";
 import {
 	ArrowRight,
 	Circle,
 	Hand,
-	LayoutTemplate,
 	Minus,
 	MousePointer2,
-	Sparkles,
 	Square,
 	StickyNote,
 	Type,
@@ -25,15 +17,11 @@ interface Props {
 	setSelectedTool: React.Dispatch<
 		SetStateAction<ElementType | "select" | "hand">
 	>;
-	applyTemplate: (
-		templateType: "swot" | "retrospective" | "brainstorming",
-	) => void;
 }
 
 export default function DecisionBoardToolbar({
 	selectedTool,
 	setSelectedTool,
-	applyTemplate,
 }: Props) {
 	return (
 		<div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg shadow-lg p-2 flex items-center gap-1">
@@ -104,28 +92,6 @@ export default function DecisionBoardToolbar({
 			>
 				<Minus className="w-4 h-4" />
 			</Button>
-			<div className="w-px h-6 bg-border mx-1" />
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button variant="ghost" size="sm" title="Templates">
-						<LayoutTemplate className="w-4 h-4" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="center" side="top">
-					<DropdownMenuItem onClick={() => applyTemplate("swot")}>
-						<Square className="w-4 h-4 mr-2" />
-						SWOT Analysis
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => applyTemplate("retrospective")}>
-						<StickyNote className="w-4 h-4 mr-2" />
-						Retrospective
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => applyTemplate("brainstorming")}>
-						<Sparkles className="w-4 h-4 mr-2" />
-						Brainstorming
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
 		</div>
 	);
 }

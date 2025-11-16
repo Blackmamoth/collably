@@ -189,7 +189,6 @@ function RouteComponent() {
 											setSelectedPlan(plan.id);
 											setIsProcessing(true);
 											try {
-												console.log(import.meta.env.VITE_APP_HOST);
 												await attach({
 													productId: plan.id,
 													dialog: CheckoutDialog,

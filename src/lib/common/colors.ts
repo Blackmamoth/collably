@@ -41,3 +41,21 @@ export const getColorClasses = (colorName: string) => {
 	return colorOptions.find((c) => c.name === colorName) || colorOptions[0];
 };
 
+export const getStickyNoteColors = (colorName: string | undefined): {
+	backgroundColor: string;
+	color: string;
+} => {
+	const color = colorName || "yellow";
+	
+	const colorMap: Record<string, { backgroundColor: string; color: string }> = {
+		yellow: { backgroundColor: "#fef3c7", color: "#78350f" },
+		pink: { backgroundColor: "#fce7f3", color: "#831843" },
+		blue: { backgroundColor: "#dbeafe", color: "#1e3a8a" },
+		green: { backgroundColor: "#d1fae5", color: "#064e3b" },
+		purple: { backgroundColor: "#e9d5ff", color: "#581c87" },
+		orange: { backgroundColor: "#fed7aa", color: "#7c2d12" },
+	};
+
+	return colorMap[color] || colorMap.yellow;
+};
+

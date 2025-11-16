@@ -1,39 +1,34 @@
 import { createFileRoute, redirect, useParams } from "@tanstack/react-router";
-import type React from "react";
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { api } from "convex/_generated/api";
+import type { Id } from "convex/_generated/dataModel";
+import { useMutation, useQuery } from "convex/react";
 import {
-	Trash2,
 	MessageSquare,
-	ThumbsUp,
 	MousePointer2,
+	ThumbsUp,
+	Trash2,
 	X,
 } from "lucide-react";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AISummarySidebar from "@/components/dashboard/decision-board/ai-summary";
+import DecisionBoardComments from "@/components/dashboard/decision-board/comments-dialog";
+import DecisionBoardMembersDialog from "@/components/dashboard/decision-board/members-dialog";
+import ResizeHandles from "@/components/dashboard/decision-board/resize-handles";
+import DecisionBoardSharedialog from "@/components/dashboard/decision-board/share-dialog";
+import DecisionBoardToolbar from "@/components/dashboard/decision-board/toolbar";
+import DecisionBoardTopbar from "@/components/dashboard/decision-board/topbar";
+import DecisionBoardZoomControls from "@/components/dashboard/decision-board/zoom-controls";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { getColorClasses, getStickyNoteColors } from "@/lib/common/colors";
+import { formatDateSince, generateColorFromId } from "@/lib/common/helper";
 import type {
 	BoardElement,
-	CanvasElement,
-	ConnectorElement,
 	ElementType,
 	LiveCursor,
 	ResizeHandle,
-	ShapeElement,
-	StickyNoteElement,
-	TextElement,
 } from "@/lib/common/types";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
-import type { Id } from "convex/_generated/dataModel";
-import { formatDateSince, generateColorFromId } from "@/lib/common/helper";
-import DecisionBoardTopbar from "@/components/dashboard/decision-board/topbar";
-import DecisionBoardToolbar from "@/components/dashboard/decision-board/toolbar";
-import DecisionBoardZoomControls from "@/components/dashboard/decision-board/zoom-controls";
-import AISummarySidebar from "@/components/dashboard/decision-board/ai-summary";
-import DecisionBoardMembersDialog from "@/components/dashboard/decision-board/members-dialog";
-import DecisionBoardSharedialog from "@/components/dashboard/decision-board/share-dialog";
-import DecisionBoardComments from "@/components/dashboard/decision-board/comments-dialog";
-import ResizeHandles from "@/components/dashboard/decision-board/resize-handles";
-import { getColorClasses } from "@/lib/common/colors";
 
 // Debounce utility to delay execution until activity settles
 function debounce<T extends (...args: any[]) => any>(
@@ -74,7 +69,7 @@ export const Route = createFileRoute(
 				projectId: projectId as Id<"project">,
 			});
 			return { project };
-		} catch (error) {
+		} catch (error: unknown) {
 			throw redirect({ to: "/dashboard" });
 		}
 	},
@@ -132,27 +127,67 @@ function RouteComponent() {
 
 	const canvasRef = useRef<HTMLDivElement>(null);
 
+	// Helper function to check if an ID is a temporary ID
+	const isTempId = useCallback((id: Id<"element"> | string): boolean => {
+		return String(id).startsWith("temp-id-");
+	}, []);
+
 	const isEditingElement = useCallback(
 		(id: Id<"element">) => editingElement === id,
 		[editingElement],
 	);
 
+	// Use refs to track previous values and prevent unnecessary updates
+	const prevElementsRef = useRef<typeof elements>([]);
+	const prevEditingElementRef = useRef<Id<"element"> | null>(null);
+
 	useEffect(() => {
+		// Check if elements actually changed by comparing IDs
+		const elementsChanged =
+			elements.length !== prevElementsRef.current.length ||
+			elements.some(
+				(el, idx) =>
+					prevElementsRef.current[idx]?._id !== el._id ||
+					prevElementsRef.current[idx]?._creationTime !== el._creationTime,
+			);
+
+		const editingElementChanged =
+			editingElement !== prevEditingElementRef.current;
+
+		// Only update if something actually changed
+		if (!elementsChanged && !editingElementChanged) {
+			return;
+		}
+
+		// Update refs
+		prevElementsRef.current = elements;
+		prevEditingElementRef.current = editingElement;
+
 		setLocalElements((prev) => {
 			const prevById = new Map(prev.map((el) => [el._id, el]));
 			const serverById = new Map(elements.map((el) => [el._id, el]));
 
 			const merged = elements.map((serverEl) => {
+				const localEl = prevById.get(serverEl._id);
+				
+				// Preserve local element if it's being edited
 				if (editingElement && serverEl._id === editingElement) {
-					return prevById.get(serverEl._id) ?? serverEl;
+					return localEl ?? serverEl;
 				}
+				
+				// Preserve local element if it has different content (unsaved changes)
+				// This prevents content from reverting when blur happens before server update completes
+				if (localEl && (localEl.content ?? "") !== (serverEl.content ?? "")) {
+					return localEl;
+				}
+				
 				return serverEl;
 			});
 
 			prev.forEach((localEl) => {
 				const existsOnServer = serverById.has(localEl._id);
 				const isEditing = editingElement === localEl._id;
-				const hasTempId = String(localEl._id).startsWith("temp-id-");
+				const hasTempId = isTempId(localEl._id);
 
 				if (!existsOnServer && (isEditing || hasTempId)) {
 					merged.push(localEl);
@@ -161,7 +196,7 @@ function RouteComponent() {
 
 			return merged;
 		});
-	}, [elements, editingElement]);
+	}, [elements, editingElement, isTempId]);
 
 	// // Convert Convex DB shape → current UI element shape
 	// const normalizedElements = useMemo(() => {
@@ -186,13 +221,17 @@ function RouteComponent() {
 
 	const debouncedElementUpdate = useMemo(() => {
 		return debounce(async (id: Id<"element">, patch: Patch) => {
+			// Skip update if ID is temporary (not yet saved to database)
+			if (isTempId(id)) {
+				return;
+			}
 			await updateElement({
 				projectId: params.projectId as Id<"project">,
 				id,
 				patch,
 			});
 		}, 250);
-	}, [updateElement, params.projectId]);
+	}, [updateElement, params.projectId, isTempId]);
 
 	const screenToCanvas = (screenX: number, screenY: number) => {
 		if (!canvasRef.current) return { x: 0, y: 0 };
@@ -339,11 +378,12 @@ function RouteComponent() {
 			}
 		} else {
 			// If clicking on an existing element
-			const clickedElementId =
-				(e.target as HTMLElement).closest("[data-element-id]")?.dataset
-					.elementId || "-1";
+			const clickedElement = (e.target as HTMLElement).closest(
+				"[data-element-id]",
+			) as HTMLElement | null;
+			const clickedElementId = clickedElement?.dataset.elementId || "-1";
 
-			if (clickedElementId !== -1) {
+			if (clickedElementId !== "-1") {
 				const element = localElements.find((el) => el._id === clickedElementId);
 				if (element) {
 					if (selectedTool === "select") {
@@ -484,7 +524,7 @@ function RouteComponent() {
 
 		if (draggedElement) {
 			const el = localElements.find((el) => el._id === draggedElement);
-			if (el) {
+			if (el && !isTempId(el._id)) {
 				updateElement({
 					projectId: params.projectId as Id<"project">,
 					id: el._id,
@@ -784,256 +824,6 @@ function RouteComponent() {
 		}
 	};
 
-	const applyTemplate = (
-		templateType: "swot" | "retrospective" | "brainstorming",
-	) => {
-		let newElements: CanvasElement[] = [];
-
-		if (!canvasRef.current) return;
-		const rect = canvasRef.current.getBoundingClientRect();
-		const viewportCenterX = rect.width / 2;
-		const viewportCenterY = rect.height / 2;
-		const canvasCenter = screenToCanvas(
-			viewportCenterX + rect.left,
-			viewportCenterY + rect.top,
-		);
-
-		// Use viewport center as the base position for templates
-		const baseX = canvasCenter.x - 300; // Offset to center the template
-		const baseY = canvasCenter.y - 200;
-
-		const groupId = `template-${Date.now()}`;
-
-		if (templateType === "swot") {
-			// SWOT Analysis: 4 quadrants
-			const spacing = 320;
-
-			newElements = [
-				// Title
-				{
-					id: Date.now(),
-					type: "text",
-					content: "SWOT Analysis",
-					fontSize: 32,
-					fontWeight: "bold",
-					color: "#ffffff",
-					position: { x: baseX + spacing, y: baseY - 80 },
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Strengths
-				{
-					id: Date.now() + 1,
-					type: "note",
-					content: "Strengths\n\nWhat are we good at?",
-					color: "green",
-					size: { width: 280, height: 200 },
-					position: { x: baseX, y: baseY },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Weaknesses
-				{
-					id: Date.now() + 2,
-					type: "note",
-					content: "Weaknesses\n\nWhat can we improve?",
-					color: "pink",
-					size: { width: 280, height: 200 },
-					position: { x: baseX + spacing, y: baseY },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Opportunities
-				{
-					id: Date.now() + 3,
-					type: "note",
-					content: "Opportunities\n\nWhat possibilities exist?",
-					color: "blue",
-					size: { width: 280, height: 200 },
-					position: { x: baseX, y: baseY + 240 },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Threats
-				{
-					id: Date.now() + 4,
-					type: "note",
-					content: "Threats\n\nWhat challenges do we face?",
-					color: "orange",
-					size: { width: 280, height: 200 },
-					position: { x: baseX + spacing, y: baseY + 240 },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-			];
-		} else if (templateType === "retrospective") {
-			// Retrospective: 3 columns
-			const spacing = 340;
-
-			newElements = [
-				// Title
-				{
-					id: Date.now(),
-					type: "text",
-					content: "Sprint Retrospective",
-					fontSize: 32,
-					fontWeight: "bold",
-					color: "#ffffff",
-					position: { x: baseX + spacing, y: baseY - 80 },
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// What went well
-				{
-					id: Date.now() + 1,
-					type: "note",
-					content: "What went well? 😊\n\nAdd your positive notes here",
-					color: "green",
-					size: { width: 300, height: 400 },
-					position: { x: baseX, y: baseY },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// What didn't go well
-				{
-					id: Date.now() + 2,
-					type: "note",
-					content: "What didn't go well? 🤔\n\nAdd challenges here",
-					color: "orange",
-					size: { width: 300, height: 400 },
-					position: { x: baseX + spacing, y: baseY },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Action items
-				{
-					id: Date.now() + 3,
-					type: "note",
-					content: "Action Items 🎯\n\nWhat will we do differently?",
-					color: "blue",
-					size: { width: 300, height: 400 },
-					position: { x: baseX + spacing * 2, y: baseY },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-			];
-		} else if (templateType === "brainstorming") {
-			// Brainstorming: Open canvas with starter notes
-
-			newElements = [
-				// Title
-				{
-					id: Date.now(),
-					type: "text",
-					content: "Brainstorming Session",
-					fontSize: 32,
-					fontWeight: "bold",
-					color: "#ffffff",
-					position: { x: baseX + 200, y: baseY - 80 },
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Central idea
-				{
-					id: Date.now() + 1,
-					type: "note",
-					content: "Main Topic\n\nWhat are we brainstorming about?",
-					color: "purple",
-					size: { width: 280, height: 180 },
-					position: { x: baseX + 200, y: baseY + 100 },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Idea 1
-				{
-					id: Date.now() + 2,
-					type: "note",
-					content: "Idea 1",
-					color: "yellow",
-					size: { width: 200, height: 140 },
-					position: { x: baseX, y: baseY },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Idea 2
-				{
-					id: Date.now() + 3,
-					type: "note",
-					content: "Idea 2",
-					color: "pink",
-					size: { width: 200, height: 140 },
-					position: { x: baseX + 520, y: baseY },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Idea 3
-				{
-					id: Date.now() + 4,
-					type: "note",
-					content: "Idea 3",
-					color: "blue",
-					size: { width: 200, height: 140 },
-					position: { x: baseX, y: baseY + 320 },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-				// Idea 4
-				{
-					id: Date.now() + 5,
-					type: "note",
-					content: "Idea 4",
-					color: "green",
-					size: { width: 200, height: 140 },
-					position: { x: baseX + 520, y: baseY + 320 },
-					votes: 0,
-					comments: [],
-					author: "Template",
-					timestamp: new Date().toISOString(),
-					groupId,
-				},
-			];
-		}
-
-		// setElements([...elements, ...newElements]);
-		setSelectedTool("select");
-	};
-
 	const selectedElementData = localElements.find(
 		(el) => el._id === selectedElement,
 	);
@@ -1215,6 +1005,7 @@ function RouteComponent() {
 								element.elementType === "sticky"
 							) {
 								const colors = getColorClasses(element.color || "");
+								const stickyColors = getStickyNoteColors(element.color);
 								const isSelected = selectedElement === element._id;
 								const isEditing = editingElement === element._id;
 
@@ -1234,34 +1025,8 @@ function RouteComponent() {
 											width: element.width,
 											height: element.height,
 											cursor: selectedTool === "select" ? "move" : "default",
-											backgroundColor:
-												element.color === "yellow"
-													? "#fef3c7"
-													: element.color === "pink"
-														? "#fce7f3"
-														: element.color === "blue"
-															? "#dbeafe"
-															: element.color === "green"
-																? "#d1fae5"
-																: element.color === "purple"
-																	? "#e9d5ff"
-																	: element.color === "orange"
-																		? "#fed7aa"
-																		: "#fef3c7",
-											color:
-												element.color === "yellow"
-													? "#78350f"
-													: element.color === "pink"
-														? "#831843"
-														: element.color === "blue"
-															? "#1e3a8a"
-															: element.color === "green"
-																? "#064e3b"
-																: element.color === "purple"
-																	? "#581c87"
-																	: element.color === "orange"
-																		? "#7c2d12"
-																		: "#78350f",
+											backgroundColor: stickyColors.backgroundColor,
+											color: stickyColors.color,
 											boxShadow:
 												"0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)",
 											transform: "rotate(-0.5deg)",
@@ -1311,7 +1076,7 @@ function RouteComponent() {
 													const el = localElements.find(
 														(e) => e._id === element._id,
 													);
-													if (el) {
+													if (el && !isTempId(el._id)) {
 														updateElement({
 															projectId: params.projectId as Id<"project">,
 															id: el._id,
@@ -1430,7 +1195,7 @@ function RouteComponent() {
 													const el = localElements.find(
 														(x) => x._id === element._id,
 													);
-													if (el) {
+													if (el && !isTempId(el._id)) {
 														updateElement({
 															projectId: params.projectId as Id<"project">,
 															id: el._id,
@@ -1659,7 +1424,6 @@ function RouteComponent() {
 						<DecisionBoardToolbar
 							selectedTool={selectedTool}
 							setSelectedTool={setSelectedTool}
-							applyTemplate={applyTemplate}
 						/>
 					)}
 
