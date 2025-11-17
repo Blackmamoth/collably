@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,10 +21,35 @@ export const Route = createFileRoute("/")({ component: App });
 function App() {
 	const { user } = useRouteContext({ from: Route.id });
 	const isLoggedIn = user !== undefined;
+	const [starCount, setStarCount] = useState<number | null>(null);
 
 	const firstName = useMemo(() => {
 		return user?.name ? user.name.split(" ")[0] : "";
 	}, [user?.name]);
+
+	useEffect(() => {
+		const fetchStarCount = async () => {
+			try {
+				const response = await fetch(
+					"https://api.github.com/repos/blackmamoth/collably",
+				);
+				const responseBody = await response.json();
+				setStarCount(responseBody.stargazers_count);
+			} catch (error) {
+				console.error("Failed to fetch GitHub star count:", error);
+			}
+		};
+
+		fetchStarCount();
+	}, []);
+
+	const formatStarCount = (count: number | null): string => {
+		if (count === null) return "1.2k"; // Fallback to original value
+		if (count >= 1000) {
+			return `${(count / 1000).toFixed(1)}k`;
+		}
+		return count.toString();
+	};
 	return (
 		<div className="min-h-screen bg-background">
 			{/* Navigation */}
@@ -57,7 +82,7 @@ function App() {
 								<span>Star on GitHub</span>
 								<Badge variant="secondary" className="ml-1">
 									<Star className="w-3 h-3 mr-1 fill-current" />
-									1.2k
+									{formatStarCount(starCount)}
 								</Badge>
 							</a>
 							<ThemeToggle />
