@@ -322,7 +322,7 @@ function RouteComponent() {
 								<div>
 									<h2 className="text-lg font-semibold mb-1">Preferences</h2>
 									<p className="text-sm text-muted-foreground">
-										Customize your Taskloom experience
+										Customize your Collably experience
 									</p>
 								</div>
 
@@ -399,5 +399,5 @@ function RouteComponent() {
 				</div>
 			</div>
 		</div>
-	)
+	);
 }

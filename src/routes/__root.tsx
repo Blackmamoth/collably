@@ -33,7 +33,7 @@ import "@fontsource/geist-mono/700.css";
 import NotFound from "@/components/not-found";
 import { Toaster } from "@/components/ui/sonner";
 import { WorkspaceProvider } from "@/lib/workspace-context";
-// Import your globals.css (copy from Taskloom project)
+// Import your globals.css (copy from Collably project)
 import appCss from "../styles.css?url";
 
 const fetchAuth = createServerFn({ method: "GET" }).handler(async () => {
@@ -68,7 +68,7 @@ export const Route = createRootRouteWithContext<{
 				content: "width=device-width, initial-scale=1",
 			},
 			{
-				title: "Taskloom - Transform Team Collaboration",
+				title: "Collably - Transform Team Collaboration",
 			},
 			{
 				name: "description",

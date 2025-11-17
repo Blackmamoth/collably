@@ -18,7 +18,7 @@ function RouteComponent() {
 						<Layers className="w-6 h-6 text-primary-foreground" />
 					</div>
 					<span className="text-2xl font-semibold tracking-tight">
-						Taskloom
+						Collably
 					</span>
 				</Link>
 

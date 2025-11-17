@@ -9,12 +9,7 @@ import { useCustomer } from "autumn-js/react";
 import { api } from "convex/_generated/api";
 import { useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
-import {
-	ArrowLeft,
-	Download,
-	ExternalLink,
-	Users,
-} from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -277,7 +272,7 @@ function RouteComponent() {
 													<Label htmlFor="workspace-slug">Workspace URL</Label>
 													<div className="flex items-center gap-2">
 														<span className="text-sm text-muted-foreground">
-															taskloom.app/
+															collably.app/
 														</span>
 														<Input
 															id={"workspace-slug"}
@@ -415,7 +410,10 @@ function RouteComponent() {
 													<Button variant="outline" onClick={handleUpgrade}>
 														Change plan
 													</Button>
-													<Button variant="outline" onClick={handleManageBilling}>
+													<Button
+														variant="outline"
+														onClick={handleManageBilling}
+													>
 														<ExternalLink className="w-4 h-4 mr-2" />
 														Manage
 													</Button>

@@ -45,7 +45,7 @@
 }
 
 .dark {
-  /* Enhanced dark theme colors for Taskloom */
+  /* Enhanced dark theme colors for Collably */
   --background: oklch(0.12 0 0);
   --foreground: oklch(0.98 0 0);
   --card: oklch(0.15 0 0);
