@@ -160,16 +160,35 @@ function RouteComponent() {
 	// Use refs to track previous values and prevent unnecessary updates
 	const prevElementsRef = useRef<typeof elements>([]);
 	const prevEditingElementRef = useRef<Id<"element"> | null>(null);
+	// Track server updatedAt when we start making local edits, to detect when our updates complete
+	const localEditStartUpdatedAtRef = useRef<Map<Id<"element">, number>>(new Map());
 
 	useEffect(() => {
-		// Check if elements actually changed by comparing IDs
+		// Check if elements actually changed by comparing IDs, updatedAt, and key fields
 		const elementsChanged =
 			elements.length !== prevElementsRef.current.length ||
-			elements.some(
-				(el, idx) =>
-					prevElementsRef.current[idx]?._id !== el._id ||
-					prevElementsRef.current[idx]?._creationTime !== el._creationTime,
-			);
+			elements.some((el, idx) => {
+				const prevEl = prevElementsRef.current[idx];
+				if (!prevEl) return true;
+				
+				// Check if ID changed (new element)
+				if (prevEl._id !== el._id) return true;
+				
+				// Check if updatedAt changed (element was modified)
+				if (prevEl.updatedAt !== el.updatedAt) return true;
+				
+				// Check if key fields changed (content, votes, position, etc.)
+				if ((prevEl.content ?? "") !== (el.content ?? "")) return true;
+				if (prevEl.votes !== el.votes) return true;
+				if (prevEl.hasVoted !== el.hasVoted) return true;
+				if (prevEl.commentCount !== el.commentCount) return true;
+				if (prevEl.x !== el.x || prevEl.y !== el.y) return true;
+				if (prevEl.width !== el.width || prevEl.height !== el.height) return true;
+				if (prevEl.endX !== el.endX || prevEl.endY !== el.endY) return true;
+				if ((prevEl.color ?? "") !== (el.color ?? "")) return true;
+				
+				return false;
+			});
 
 		const editingElementChanged =
 			editingElement !== prevEditingElementRef.current;
@@ -189,18 +208,34 @@ function RouteComponent() {
 
 			const merged = elements.map((serverEl) => {
 				const localEl = prevById.get(serverEl._id);
+				const serverUpdatedAt = serverEl.updatedAt ?? 0;
+				const editStartUpdatedAt = localEditStartUpdatedAtRef.current.get(serverEl._id);
 				
-				// Preserve local element if it's being edited
+				// Only preserve local element if it's currently being edited by this user
+				// This allows server updates from other members to come through
 				if (editingElement && serverEl._id === editingElement) {
 					return localEl ?? serverEl;
 				}
 				
-				// Preserve local element if it has different content (unsaved changes)
-				// This prevents content from reverting when blur happens before server update completes
+				// If local content differs from server, preserve local content only if:
+				// 1. We have local content, AND
+				// 2. We tracked when we started editing (have editStartUpdatedAt), AND
+				// 3. Server's updatedAt hasn't increased since we started editing (our update is still pending)
+				// This prevents reverting to old server content while our update is in flight
 				if (localEl && (localEl.content ?? "") !== (serverEl.content ?? "")) {
-					return localEl;
+					if (editStartUpdatedAt !== undefined && serverUpdatedAt <= editStartUpdatedAt) {
+						// Our update is still pending, preserve local content
+						return localEl;
+					}
+					// Server has updated (either our update completed or another member updated)
+					// Clear the tracking and accept server content
+					localEditStartUpdatedAtRef.current.delete(serverEl._id);
+				} else if (editStartUpdatedAt !== undefined && serverUpdatedAt > editStartUpdatedAt) {
+					// Our update completed (server updatedAt increased), clear tracking
+					localEditStartUpdatedAtRef.current.delete(serverEl._id);
 				}
 				
+				// Accept server updates (either from other members or our completed update)
 				return serverEl;
 			});
 
@@ -217,6 +252,20 @@ function RouteComponent() {
 			return merged;
 		});
 	}, [elements, editingElement, isTempId]);
+
+	// Track server's updatedAt when we start editing an element
+	useEffect(() => {
+		if (editingElement) {
+			const serverElement = elements.find((el) => el._id === editingElement);
+			if (serverElement && !localEditStartUpdatedAtRef.current.has(editingElement)) {
+				// Record the server's updatedAt when we start editing
+				localEditStartUpdatedAtRef.current.set(editingElement, serverElement.updatedAt ?? 0);
+			}
+		} else {
+			// When we stop editing, don't clear the tracking immediately
+			// It will be cleared when the server update completes (in the merge logic)
+		}
+	}, [editingElement, elements]);
 
 	// // Convert Convex DB shape → current UI element shape
 	// const normalizedElements = useMemo(() => {
@@ -359,6 +408,12 @@ function RouteComponent() {
 						prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
 					);
 
+					// Track the server's updatedAt when we start editing the new element
+					const newServerElement = elements.find((el) => el._id === id);
+					if (newServerElement) {
+						localEditStartUpdatedAtRef.current.set(id, newServerElement.updatedAt ?? 0);
+					}
+
 					setSelectedElement(id);
 					setEditingElement(id);
 				} catch (error) {
@@ -418,6 +473,12 @@ function RouteComponent() {
 					setLocalElements((prev) =>
 						prev.map((el) => (el._id === tempId ? { ...el, _id: id } : el)),
 					);
+
+					// Track the server's updatedAt when we start editing the new element
+					const newServerElement = elements.find((el) => el._id === id);
+					if (newServerElement) {
+						localEditStartUpdatedAtRef.current.set(id, newServerElement.updatedAt ?? 0);
+					}
 
 					setSelectedElement(id);
 					setEditingElement(id);
@@ -793,6 +854,11 @@ function RouteComponent() {
 			(element.elementType === "arrow" || element.elementType === "line")
 		) {
 			return; // Don't allow editing connectors
+		}
+		// Track the server's updatedAt when we start editing
+		const serverElement = elements.find((el) => el._id === elementId);
+		if (serverElement) {
+			localEditStartUpdatedAtRef.current.set(elementId, serverElement.updatedAt ?? 0);
 		}
 		setEditingElement(elementId);
 		setSelectedElement(elementId); // Ensure it's selected when editing
