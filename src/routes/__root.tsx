@@ -120,17 +120,19 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 								disableTransitionOnChange
 							>
 								{children}
-								{import.meta.env.NODE_ENV !== "production" && <TanStackDevtools
-									config={{
-										position: "bottom-right",
-									}}
-									plugins={[
-										{
-											name: "Tanstack Router",
-											render: <TanStackRouterDevtoolsPanel />,
-										},
-									]}
-								/>}
+								{process.env.NODE_ENV !== "production" && (
+									<TanStackDevtools
+										config={{
+											position: "bottom-right",
+										}}
+										plugins={[
+											{
+												name: "Tanstack Router",
+												render: <TanStackRouterDevtoolsPanel />,
+											},
+										]}
+									/>
+								)}
 								<Toaster
 									position="bottom-right"
 									expand={false}
