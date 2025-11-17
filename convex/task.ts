@@ -32,6 +32,22 @@ export const createTask = action({
 		createdBy: v.string(),
 	},
 	handler: async (ctx, args) => {
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
+		// Check permission to create task
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					task: ["create"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to create tasks");
+		}
+
 		let tags: string[] = [];
 
 		try {
@@ -278,6 +294,22 @@ export const updateTaskStatus = mutation({
 	handler: async (ctx, args) => {
 		const { member } = await validateProjectAccess(ctx, args.projectId);
 
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
+		// Check permission to update task
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					task: ["update"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to update tasks");
+		}
+
 		const task = await ctx.db.get(args.taskId);
 		if (!task) {
 			throw new ConvexError("task not found");
@@ -322,6 +354,22 @@ export const removeTask = mutation({
 	args: { projectId: v.id("project"), taskId: v.id("task") },
 	handler: async (ctx, args) => {
 		const { member } = await validateProjectAccess(ctx, args.projectId);
+
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
+		// Check permission to delete task
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					task: ["delete"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to delete tasks");
+		}
 
 		const task = await ctx.db.get(args.taskId);
 		if (!task) {

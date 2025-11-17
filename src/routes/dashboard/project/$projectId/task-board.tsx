@@ -1,18 +1,35 @@
+import { useForm } from "@tanstack/react-form";
 import {
 	createFileRoute,
 	Link,
 	redirect,
 	useParams,
 } from "@tanstack/react-router";
+import { api } from "convex/_generated/api";
+import type { Doc, Id } from "convex/_generated/dataModel";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
+import {
+	ArrowLeft,
+	Calendar,
+	CheckCircle,
+	CheckCircle2,
+	Filter,
+	Flag,
+	MoreVertical,
+	Plus,
+	Share2,
+	Sparkles,
+	Users,
+	X,
+} from "lucide-react";
 import type React from "react";
-
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import * as z from "zod";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -25,9 +42,11 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuTrigger,
 	DropdownMenuSeparator,
+	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -35,29 +54,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
-import {
-	ArrowLeft,
-	Plus,
-	Filter,
-	MoreVertical,
-	Calendar,
-	Flag,
-	Users,
-	Share2,
-	Sparkles,
-	CheckCircle2,
-	X,
-	CheckCircle,
-} from "lucide-react";
-import type { Doc, Id } from "convex/_generated/dataModel";
-import { api } from "convex/_generated/api";
-import { useAction, useMutation, useQuery } from "convex/react";
-import { useForm } from "@tanstack/react-form";
-import * as z from "zod";
+import { Textarea } from "@/components/ui/textarea";
+import { authClient } from "@/lib/auth-client";
 import { formatDateUntil } from "@/lib/common/helper";
-import type { TaskWithSubtasks } from "@/lib/common/types";
-import { ConvexError } from "convex/values";
 
 const schema = z.object({
 	title: z.string().min(1, "title is required"),
@@ -88,7 +87,7 @@ export const Route = createFileRoute(
 				projectId: projectId as Id<"project">,
 			});
 			return { project };
-		} catch (error) {
+		} catch {
 			throw redirect({ to: "/dashboard" });
 		}
 	},
@@ -116,6 +115,7 @@ function RouteComponent() {
 	};
 
 	const handleDragStart = (taskId: Id<"task">) => {
+		if (!canUpdateTask) return;
 		setDraggedTask(taskId);
 	};
 
@@ -136,6 +136,24 @@ function RouteComponent() {
 		useQuery(api.presence.getActiveMembers, {
 			projectId: project._id,
 		}) || [];
+
+	// Get current member and check permissions based on role
+	const [currentMember, setCurrentMember] = useState<{ id: string; role: string } | null>(null);
+	
+	useEffect(() => {
+		const fetchActiveMember = async () => {
+			const { data: member } = await authClient.organization.getActiveMember();
+			if (member) {
+				setCurrentMember(member);
+			}
+		};
+		fetchActiveMember();
+	}, []);
+
+	const isViewer = currentMember?.role === "viewer";
+	const canCreateTask = !isViewer;
+	const canUpdateTask = !isViewer;
+	const canDeleteTask = !isViewer;
 
 	const getMember = (memberId: string) =>
 		workspaceMembers?.members?.find((m) => m.id === memberId);
@@ -190,20 +208,22 @@ function RouteComponent() {
 	};
 
 	const handleDrop = async (newStatus: "todo" | "inprogress" | "done") => {
-		if (draggedTask !== null) {
-			try {
-				await updateTaskStatus({
-					projectId: project._id,
-					taskId: draggedTask,
-					newStatus,
-				});
-			} catch (error) {
-				if (error instanceof ConvexError) {
-					toast.error(error.data);
-				}
-			} finally {
-				setDraggedTask(null);
+		if (!canUpdateTask || draggedTask === null) {
+			setDraggedTask(null);
+			return;
+		}
+		try {
+			await updateTaskStatus({
+				projectId: project._id,
+				taskId: draggedTask,
+				newStatus,
+			});
+		} catch (error) {
+			if (error instanceof ConvexError) {
+				toast.error(error.data);
 			}
+		} finally {
+			setDraggedTask(null);
 		}
 	};
 
@@ -234,32 +254,26 @@ function RouteComponent() {
 		onSubmit: async ({ value }) => {
 			setIsLoading(true);
 			try {
-				if (workspaceMembers?.members) {
-					const currentMember = workspaceMembers?.members?.find(
-						(m) => m.user.id === user.id,
-					);
-
-					if (!currentMember) {
-						setIsAddingTask(false);
-						setIsLoading(false);
-						return;
-					}
-
-					const data = {
-						...value,
-						projectId: project._id,
-						dueDate:
-							value.dueDate === ""
-								? undefined
-								: new Date(value.dueDate).getTime(),
-						createdBy: currentMember.id,
-						priority: value.priority,
-					};
-
-					await createTask(data);
+				if (!currentMember) {
 					setIsAddingTask(false);
-					form.reset();
+					setIsLoading(false);
+					return;
 				}
+
+				const data = {
+					...value,
+					projectId: project._id,
+					dueDate:
+						value.dueDate === ""
+							? undefined
+							: new Date(value.dueDate).getTime(),
+					createdBy: currentMember.id,
+					priority: value.priority,
+				};
+
+				await createTask(data);
+				setIsAddingTask(false);
+				form.reset();
 			} catch (error) {
 				if (error instanceof ConvexError) {
 					toast.error(error.data);
@@ -346,13 +360,14 @@ function RouteComponent() {
 						Filter
 					</Button>
 
-					<Dialog open={isAddingTask} onOpenChange={setIsAddingTask}>
-						<DialogTrigger asChild>
-							<Button size="sm">
-								<Plus className="w-4 h-4 mr-2" />
-								Add Task
-							</Button>
-						</DialogTrigger>
+					{canCreateTask && (
+						<Dialog open={isAddingTask} onOpenChange={setIsAddingTask}>
+							<DialogTrigger asChild>
+								<Button size="sm">
+									<Plus className="w-4 h-4 mr-2" />
+									Add Task
+								</Button>
+							</DialogTrigger>
 						<DialogContent>
 							<DialogHeader>
 								<DialogTitle>Create new task</DialogTitle>
@@ -485,6 +500,7 @@ function RouteComponent() {
 							</form>
 						</DialogContent>
 					</Dialog>
+					)}
 
 					<Button variant="outline" size="sm">
 						<Share2 className="w-4 h-4 mr-2" />
@@ -532,14 +548,16 @@ function RouteComponent() {
 										{groupDetails.tasks.length}
 									</Badge>
 								</div>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="h-6 w-6"
-									onClick={() => setIsAddingTask(true)}
-								>
-									<Plus className="w-4 h-4" />
-								</Button>
+								{canCreateTask && (
+									<Button
+										variant="ghost"
+										size="icon"
+										className="h-6 w-6"
+										onClick={() => setIsAddingTask(true)}
+									>
+										<Plus className="w-4 h-4" />
+									</Button>
+								)}
 							</div>
 
 							{/* Tasks */}
@@ -547,9 +565,11 @@ function RouteComponent() {
 								{groupDetails.tasks.map((task) => (
 									<div
 										key={task._id}
-										draggable
+										draggable={canUpdateTask}
 										onDragStart={() => handleDragStart(task._id)}
-										className="bg-card border border-border rounded-lg p-4 hover:border-muted-foreground/20 transition-colors cursor-move group"
+										className={`bg-card border border-border rounded-lg p-4 hover:border-muted-foreground/20 transition-colors group ${
+											canUpdateTask ? "cursor-move" : "cursor-default"
+										}`}
 									>
 										<div className="flex items-start justify-between mb-2">
 											<h3 className="font-medium text-sm leading-snug pr-2">
@@ -566,13 +586,21 @@ function RouteComponent() {
 													</Button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
-													<DropdownMenuItem>Edit task</DropdownMenuItem>
-													<DropdownMenuItem>Change assignee</DropdownMenuItem>
-													<DropdownMenuItem>Move to...</DropdownMenuItem>
-													<DropdownMenuSeparator />
-													<DropdownMenuItem className="text-destructive">
-														Delete
-													</DropdownMenuItem>
+													{canUpdateTask && (
+														<>
+															<DropdownMenuItem>Edit task</DropdownMenuItem>
+															<DropdownMenuItem>Change assignee</DropdownMenuItem>
+															<DropdownMenuItem>Move to...</DropdownMenuItem>
+														</>
+													)}
+													{canDeleteTask && (
+														<>
+															{canUpdateTask && <DropdownMenuSeparator />}
+															<DropdownMenuItem className="text-destructive">
+																Delete
+															</DropdownMenuItem>
+														</>
+													)}
 												</DropdownMenuContent>
 											</DropdownMenu>
 										</div>
@@ -599,7 +627,8 @@ function RouteComponent() {
 										)}
 
 										{/* AI subtask generation button for todo and inprogress tasks */}
-										{(task.status === "todo" || task.status === "inprogress") &&
+										{canCreateTask &&
+											(task.status === "todo" || task.status === "inprogress") &&
 											task.subTasks.length === 0 && (
 												<Button
 													variant="outline"
@@ -636,11 +665,12 @@ function RouteComponent() {
 															key={subtask._id}
 															className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 transition-colors group/subtask"
 														>
-															<button
-																type="button"
-																onClick={() => toggleSubtask(subtask)}
-																className="shrink-0 mt-0.5"
-															>
+															{canUpdateTask && (
+																<button
+																	type="button"
+																	onClick={() => toggleSubtask(subtask)}
+																	className="shrink-0 mt-0.5"
+																>
 																<CheckCircle2
 																	className={`w-3.5 h-3.5 ${
 																		subtask.status === "done"
@@ -649,6 +679,7 @@ function RouteComponent() {
 																	}`}
 																/>
 															</button>
+															)}
 															<span
 																className={`leading-relaxed flex-1 ${
 																	subtask.status === "done"
@@ -658,14 +689,16 @@ function RouteComponent() {
 															>
 																{subtask.title}
 															</span>
-															<button
-																type="button"
-																onClick={() => removeSubtask(subtask._id)}
-																className="opacity-0 group-hover/subtask:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-																title="Remove subtask"
-															>
-																<X size={15} />
-															</button>
+															{canDeleteTask && (
+																<button
+																	type="button"
+																	onClick={() => removeSubtask(subtask._id)}
+																	className="opacity-0 group-hover/subtask:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+																	title="Remove subtask"
+																>
+																	<X size={15} />
+																</button>
+															)}
 														</div>
 													))}
 												</div>
@@ -729,14 +762,16 @@ function RouteComponent() {
 										<p className="text-sm text-muted-foreground mb-2">
 											No tasks yet
 										</p>
-										<Button
-											variant="ghost"
-											size="sm"
-											className="text-xs"
-											onClick={() => setIsAddingTask(true)}
-										>
-											Add a task
-										</Button>
+										{canCreateTask && (
+											<Button
+												variant="ghost"
+												size="sm"
+												className="text-xs"
+												onClick={() => setIsAddingTask(true)}
+											>
+												Add a task
+											</Button>
+										)}
 									</div>
 								)}
 							</div>

@@ -4,6 +4,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, internalMutation, mutation, query } from "./_generated/server";
 import { model } from "./ai";
+import { authComponent, createAuth } from "./auth";
 import { validateProjectAccess } from "./helpers/authorization";
 import {
 	BOARD_SUMMARY_SYSTEM_PROMPT,
@@ -101,6 +102,22 @@ export const insertElement = mutation({
 	handler: async (ctx, { element }) => {
 		const { project, member } = await validateProjectAccess(ctx, element.projectId);
 
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
+		// Check permission to create elements (using project update permission)
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					project: ["update"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to create elements");
+		}
+
 		const elementId = await ctx.db.insert("element", {
 			...element,
 			createdBy: member.id,
@@ -146,6 +163,23 @@ export const updateElement = mutation({
 	},
 	handler: async (ctx, { projectId, id, patch }) => {
 		await validateProjectAccess(ctx, projectId);
+
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
+		// Check permission to update elements (using project update permission)
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					project: ["update"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to update elements");
+		}
+
 		await ctx.db.patch(id, { ...patch, updatedAt: Date.now() });
 	},
 });
@@ -154,6 +188,22 @@ export const deleteElement = mutation({
 	args: { projectId: v.id("project"), id: v.id("element") },
 	handler: async (ctx, { id, projectId }) => {
 		const { member } = await validateProjectAccess(ctx, projectId);
+
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
+		// Check permission to delete elements (using project update permission)
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					project: ["update"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to delete elements");
+		}
 
 		const element = await ctx.db.get(id);
 

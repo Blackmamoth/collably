@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useParams } from "@tanstack/react-router";
 import { api } from "convex/_generated/api";
 import type { Id } from "convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
@@ -23,6 +23,7 @@ import DecisionBoardTopbar from "@/components/dashboard/decision-board/topbar";
 import DecisionBoardZoomControls from "@/components/dashboard/decision-board/zoom-controls";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
 import { getColorClasses, getStickyNoteColors } from "@/lib/common/colors";
 import { formatDateSince, generateColorFromId } from "@/lib/common/helper";
 import type {
@@ -119,6 +120,23 @@ function RouteComponent() {
 	} | null>(null);
 	const [showAISummary, setShowAISummary] = useState(false);
 	const [isFocusMode, setIsFocusMode] = useState(false);
+
+	// Permission states - will be set after workspaceMembers loads
+	const [canModifyElements, setCanModifyElements] = useState(false);
+	const [isViewer, setIsViewer] = useState(false);
+
+	// Wrapper to prevent viewers from exiting focus mode
+	const setFocusMode = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+		if (isViewer) {
+			// Viewers cannot exit focus mode
+			const newValue = typeof value === 'function' ? value(isFocusMode) : value;
+			if (!newValue) {
+				// Viewers cannot exit focus mode
+				return;
+			}
+		}
+		setIsFocusMode(value);
+	}, [isViewer, isFocusMode]);
 
 	const [commentsDialogOpen, setCommentsDialogOpen] = useState(false);
 	const [selectedNoteForComments, setSelectedNoteForComments] =
@@ -223,6 +241,10 @@ function RouteComponent() {
 
 	const debouncedElementUpdate = useMemo(() => {
 		return debounce(async (id: Id<"element">, patch: Patch) => {
+			// Skip update if user cannot modify elements
+			if (!canModifyElements) {
+				return;
+			}
 			// Skip update if ID is temporary (not yet saved to database)
 			if (isTempId(id)) {
 				return;
@@ -241,7 +263,7 @@ function RouteComponent() {
 				}
 			}
 		}, 250);
-	}, [updateElement, params.projectId, isTempId]);
+	}, [updateElement, params.projectId, isTempId, canModifyElements]);
 
 	const screenToCanvas = (screenX: number, screenY: number) => {
 		if (!canvasRef.current) return { x: 0, y: 0 };
@@ -258,6 +280,11 @@ function RouteComponent() {
 			setIsPanning(true);
 			setLastPanPoint({ x: e.clientX, y: e.clientY }); // Use current mouse position for pan start
 			e.preventDefault(); // Prevent default browser behavior for middle click
+			return;
+		}
+
+		// Disable element creation for viewers
+		if (!canModifyElements) {
 			return;
 		}
 
@@ -418,6 +445,10 @@ function RouteComponent() {
 			if (clickedElementId !== "-1") {
 				const element = localElements.find((el) => el._id === clickedElementId);
 				if (element) {
+					// Viewers can only use hand tool, cannot select or interact with elements
+					if (!canModifyElements) {
+						return;
+					}
 					if (selectedTool === "select") {
 						setSelectedElement(element._id);
 						setDraggedElement(element._id);
@@ -443,7 +474,9 @@ function RouteComponent() {
 				}
 			} else {
 				// Clicked on canvas and not on an element, deselect
-				setSelectedElement(null);
+				if (canModifyElements) {
+					setSelectedElement(null);
+				}
 			}
 		}
 	};
@@ -461,6 +494,11 @@ function RouteComponent() {
 		}
 
 		if (resizingElement) {
+			// Viewers cannot resize elements
+			if (!canModifyElements) {
+				setResizingElement(null);
+				return;
+			}
 			const canvasPos = screenToCanvas(e.clientX, e.clientY);
 			const dx = canvasPos.x - resizingElement.startPos.x;
 			const dy = canvasPos.y - resizingElement.startPos.y;
@@ -490,6 +528,11 @@ function RouteComponent() {
 		}
 
 		if (draggedElement !== null) {
+			// Viewers cannot drag elements
+			if (!canModifyElements) {
+				setDraggedElement(null);
+				return;
+			}
 			const canvasPos = screenToCanvas(e.clientX, e.clientY);
 			const draggedEl = localElements.find((el) => el._id === draggedElement);
 			if (!draggedEl) return;
@@ -721,7 +764,8 @@ function RouteComponent() {
 		e: React.MouseEvent,
 		elementId: Id<"element">,
 	) => {
-		if (selectedTool !== "select") return;
+		// Viewers can only use hand tool, cannot interact with elements
+		if (!canModifyElements || selectedTool !== "select") return;
 		e.stopPropagation();
 
 		const element = localElements.find((el) => el._id === elementId);
@@ -740,6 +784,8 @@ function RouteComponent() {
 		e: React.MouseEvent,
 		elementId: Id<"element">,
 	) => {
+		// Viewers cannot edit elements
+		if (!canModifyElements) return;
 		e.stopPropagation();
 		const element = localElements.find((el) => el._id === elementId);
 		if (
@@ -757,6 +803,8 @@ function RouteComponent() {
 		elementId: Id<"element">,
 		handle: ResizeHandle,
 	) => {
+		// Viewers cannot resize elements
+		if (!canModifyElements) return;
 		e.stopPropagation();
 		const element = localElements.find((el) => el._id === elementId);
 		if (
@@ -796,6 +844,7 @@ function RouteComponent() {
 	};
 
 	const handleDeleteElement = async (id: Id<"element">) => {
+		if (!canModifyElements) return;
 		try {
 			await deleteElement({ id, projectId: params.projectId as Id<"project"> });
 			if (selectedElement === id) setSelectedElement(null);
@@ -926,13 +975,39 @@ function RouteComponent() {
 			projectId: params.projectId as Id<"project">,
 		}) || [];
 
-	// Current logged-in workspace member
-	const currentMember = useMemo(() => {
-		return (
-			workspaceMembers?.members?.find((m) => m.user.id === user.id) || null
-		);
-	}, [workspaceMembers, user.id]);
-	const creatorId = currentMember?.id ?? user.id;
+	// Get active member
+	const [activeMember, setActiveMember] = useState<{ id: string; role: string } | null>(null);
+	
+	useEffect(() => {
+		const fetchActiveMember = async () => {
+			const { data: member } = await authClient.organization.getActiveMember();
+			if (member) {
+				setActiveMember(member);
+			}
+		};
+		fetchActiveMember();
+	}, []);
+
+	const creatorId = activeMember?.id ?? user.id;
+
+	// Update permissions based on role
+	useEffect(() => {
+		const viewer = activeMember?.role === "viewer";
+		setIsViewer(viewer);
+		setCanModifyElements(!viewer);
+		// Force focus mode and hand tool for viewers
+		if (viewer) {
+			setIsFocusMode(true);
+			setSelectedTool("hand");
+		}
+	}, [activeMember?.role]);
+
+	// Force hand tool for viewers whenever tool changes
+	useEffect(() => {
+		if (isViewer && selectedTool !== "hand") {
+			setSelectedTool("hand");
+		}
+	}, [isViewer, selectedTool]);
 
 	// Presence mutators
 	const updatePresence = useMutation(api.presence.updatePresence);
@@ -941,7 +1016,7 @@ function RouteComponent() {
 	// Stable debounced presence update
 	const debouncedUpdatePresence = useMemo(() => {
 		return debounce(async (cursorX: number, cursorY: number) => {
-			if (!currentMember) return;
+			if (!activeMember) return;
 
 			await updatePresence({
 				projectId: params.projectId as Id<"project">,
@@ -949,14 +1024,14 @@ function RouteComponent() {
 				cursorY,
 			});
 		}, 250);
-	}, [currentMember, params.projectId, updatePresence]);
+	}, [activeMember, params.projectId, updatePresence]);
 
 	// Live Cursors excluding yourself
 	const liveCursors = useMemo<LiveCursor[]>(() => {
-		if (!workspaceMembers?.members || !currentMember) return [];
+		if (!workspaceMembers?.members || !activeMember) return [];
 
 		return activePresence
-			.filter((p) => p.memberId !== currentMember.id)
+			.filter((p) => p.memberId !== activeMember.id)
 			.map((presence) => {
 				const member = workspaceMembers.members.find(
 					(m) => m.id === presence.memberId,
@@ -974,7 +1049,7 @@ function RouteComponent() {
 				};
 			})
 			.filter((c): c is LiveCursor => c !== null);
-	}, [activePresence, workspaceMembers, currentMember]);
+	}, [activePresence, workspaceMembers, activeMember]);
 
 	// Visible member avatars
 	const { visibleMembers, remainingCount } = useMemo(() => {
@@ -991,7 +1066,7 @@ function RouteComponent() {
 
 	// Presence Heartbeat (keeps user "online")
 	useEffect(() => {
-		if (!currentMember) return;
+		if (!activeMember) return;
 
 		const interval = setInterval(() => {
 			(async () => {
@@ -1010,7 +1085,7 @@ function RouteComponent() {
 		}, 15000);
 
 		return () => clearInterval(interval);
-	}, [currentMember, params.projectId, updatePresence]);
+	}, [activeMember, params.projectId, updatePresence]);
 
 	const getMember = useCallback(
 		(memberId: string) => {
@@ -1022,7 +1097,7 @@ function RouteComponent() {
 	// Cleanup on unmount / page leave
 	useEffect(() => {
 		return () => {
-			if (currentMember) {
+			if (activeMember) {
 				(async () => {
 					try {
 						await removePresence({ projectId: params.projectId as Id<"project"> });
@@ -1036,7 +1111,7 @@ function RouteComponent() {
 				})();
 			}
 		};
-	}, [currentMember, params.projectId, removePresence]);
+	}, [activeMember, params.projectId, removePresence]);
 
 	return (
 		<div className="h-screen flex flex-col bg-background">
@@ -1046,7 +1121,7 @@ function RouteComponent() {
 					project={project}
 					projectId={params.projectId}
 					remainingCount={remainingCount}
-					setIsFocusMode={setIsFocusMode}
+					setIsFocusMode={setFocusMode}
 					setMembersDialogOpen={setMembersDialogOpen}
 					setSelectedTool={setSelectedTool}
 					setShareDialogOpen={setShareDialogOpen}
@@ -1127,7 +1202,7 @@ function RouteComponent() {
 											top: element.y,
 											width: element.width,
 											height: element.height,
-											cursor: selectedTool === "select" ? "move" : "default",
+											cursor: canModifyElements && selectedTool === "select" ? "move" : "default",
 											backgroundColor: stickyColors.backgroundColor,
 											color: stickyColors.color,
 											boxShadow:
@@ -1150,17 +1225,19 @@ function RouteComponent() {
 												</Avatar>
 												<span className="text-xs opacity-70">{memberName}</span>
 											</div>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="h-6 w-6 opacity-0 group-hover:opacity-100"
-												onClick={(e) => {
-													e.stopPropagation();
-													handleDeleteElement(element._id);
-												}}
-											>
-												<Trash2 className="w-3 h-3" />
-											</Button>
+											{canModifyElements && (
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-6 w-6 opacity-0 group-hover:opacity-100"
+													onClick={(e) => {
+														e.stopPropagation();
+														handleDeleteElement(element._id);
+													}}
+												>
+													<Trash2 className="w-3 h-3" />
+												</Button>
+											)}
 										</div>
 
 										{isEditing ? (
@@ -1249,11 +1326,13 @@ function RouteComponent() {
 											</span>
 										</div>
 
-										<ResizeHandles
-											element={element}
-											handleResizeMouseDown={handleResizeMouseDown}
-											selectedElement={selectedElement}
-										/>
+										{canModifyElements && (
+											<ResizeHandles
+												element={element}
+												handleResizeMouseDown={handleResizeMouseDown}
+												selectedElement={selectedElement}
+											/>
+										)}
 									</div>
 								);
 							}
@@ -1277,7 +1356,7 @@ function RouteComponent() {
 											fontSize: element.fontSize ?? 16,
 											fontWeight: element.fontWeight ?? "normal",
 											color: element.color ?? "#ffffff",
-											cursor: selectedTool === "select" ? "move" : "default",
+											cursor: canModifyElements && selectedTool === "select" ? "move" : "default",
 											whiteSpace: "pre-wrap",
 											wordBreak: "break-word",
 											minWidth: 100,
@@ -1350,15 +1429,17 @@ function RouteComponent() {
 											backgroundColor: element.fillColor,
 											border: `${element.strokeWidth}px solid ${element.strokeColor}`,
 											borderRadius: "8px",
-											cursor: selectedTool === "select" ? "move" : "default",
+											cursor: canModifyElements && selectedTool === "select" ? "move" : "default",
 										}}
 										onMouseDown={(e) => handleElementMouseDown(e, element._id)}
 									>
-										<ResizeHandles
-											element={element}
-											handleResizeMouseDown={handleResizeMouseDown}
-											selectedElement={selectedElement}
-										/>
+										{canModifyElements && (
+											<ResizeHandles
+												element={element}
+												handleResizeMouseDown={handleResizeMouseDown}
+												selectedElement={selectedElement}
+											/>
+										)}
 									</div>
 								);
 							}
@@ -1378,15 +1459,17 @@ function RouteComponent() {
 											backgroundColor: element.fillColor,
 											border: `${element.strokeWidth}px solid ${element.strokeColor}`,
 											borderRadius: "50%",
-											cursor: selectedTool === "select" ? "move" : "default",
+											cursor: canModifyElements && selectedTool === "select" ? "move" : "default",
 										}}
 										onMouseDown={(e) => handleElementMouseDown(e, element._id)}
 									>
-										<ResizeHandles
-											element={element}
-											handleResizeMouseDown={handleResizeMouseDown}
-											selectedElement={selectedElement}
-										/>
+										{canModifyElements && (
+											<ResizeHandles
+												element={element}
+												handleResizeMouseDown={handleResizeMouseDown}
+												selectedElement={selectedElement}
+											/>
+										)}
 									</div>
 								);
 							}
@@ -1415,7 +1498,7 @@ function RouteComponent() {
 												backgroundColor: element.strokeColor,
 												transform: `rotate(${angle}deg)`,
 												transformOrigin: "0 50%",
-												cursor: selectedTool === "select" ? "move" : "default",
+												cursor: canModifyElements && selectedTool === "select" ? "move" : "default",
 											}}
 											onMouseDown={(e) =>
 												handleElementMouseDown(e, element._id)
@@ -1542,8 +1625,8 @@ function RouteComponent() {
 						<DecisionBoardZoomControls zoom={zoom} setZoom={setZoom} />
 					)}
 
-					{/* Toolbar - Hidden in focus mode */}
-					{!isFocusMode && (
+					{/* Toolbar - Hidden in focus mode and for viewers */}
+					{!isFocusMode && canModifyElements && (
 						<DecisionBoardToolbar
 							selectedTool={selectedTool}
 							setSelectedTool={setSelectedTool}
@@ -1552,14 +1635,23 @@ function RouteComponent() {
 
 					{isFocusMode && (
 						<div className="absolute top-6 right-6 bg-card border border-border rounded-lg shadow-lg">
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={() => setIsFocusMode(false)}
-							>
-								<X className="w-4 h-4 mr-2" />
-								Exit Focus Mode
-							</Button>
+							{isViewer ? (
+								<Link to={`/dashboard/project/$projectId`} params={params}>
+									<Button variant="ghost" size="sm">
+										<X className="w-4 h-4 mr-2" />
+										Back to Projects
+									</Button>
+								</Link>
+							) : (
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => setFocusMode(false)}
+								>
+									<X className="w-4 h-4 mr-2" />
+									Exit Focus Mode
+								</Button>
+							)}
 						</div>
 					)}
 				</div>

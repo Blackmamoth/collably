@@ -46,10 +46,18 @@ export const deleteWorkspace = mutation({
 			);
 		}
 
-		if (member.role !== "owner") {
-			throw new ConvexError(
-				"you must be the owner of the workspace to delete it",
-			);
+		// Check permission to delete workspace/organization
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					organization: ["delete"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to delete the workspace");
 		}
 
 		await auth.api.deleteOrganization({

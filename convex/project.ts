@@ -16,6 +16,20 @@ export const createProject = action({
 
 		const user = await authComponent.getAuthUser(ctx);
 
+		// Check permission to create project
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					project: ["create"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to create projects");
+		}
+
 		const data = await auth.api.check({
 			headers: headers,
 			body: {
@@ -110,10 +124,20 @@ export const updateProject = mutation({
 	handler: async (ctx, args) => {
 		const { member } = await validateProjectAccess(ctx, args.projectId);
 
-		if (member.role !== "owner") {
-			throw new ConvexError(
-				"only the owner of the workspace can update project details",
-			);
+		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
+		// Check permission to update project
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					project: ["update"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to update projects");
 		}
 
 		const now = Date.now();
@@ -194,10 +218,18 @@ export const deleteProject = action({
 			throw new ConvexError("you are not authorized to delete this project");
 		}
 
-		if (member.role !== "owner") {
-			throw new ConvexError(
-				"only the owner of the workspace can delete the project",
-			);
+		// Check permission to delete project
+		const permissionResult = await auth.api.hasPermission({
+			headers,
+			body: {
+				permissions: {
+					project: ["delete"],
+				},
+			},
+		});
+
+		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to delete projects");
 		}
 
 		await ctx.runMutation(internal.project.deleteProjectFromDB, {
