@@ -126,20 +126,22 @@ function RouteComponent() {
 	const params = useParams({ from: Route.id });
 
 	const { project } = Route.useLoaderData();
-	const { user } = Route.useRouteContext();
 
 	const updatePresence = useMutation(api.presence.updatePresence);
 	const removePresence = useMutation(api.presence.removePresence);
 
-	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers);
+	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers, {});
 	const activeMembers =
 		useQuery(api.presence.getActiveMembers, {
 			projectId: project._id,
 		}) || [];
 
 	// Get current member and check permissions based on role
-	const [currentMember, setCurrentMember] = useState<{ id: string; role: string } | null>(null);
-	
+	const [currentMember, setCurrentMember] = useState<{
+		id: string;
+		role: string;
+	} | null>(null);
+
 	useEffect(() => {
 		const fetchActiveMember = async () => {
 			const { data: member } = await authClient.organization.getActiveMember();
@@ -368,138 +370,143 @@ function RouteComponent() {
 									Add Task
 								</Button>
 							</DialogTrigger>
-						<DialogContent>
-							<DialogHeader>
-								<DialogTitle>Create new task</DialogTitle>
-								<DialogDescription>
-									Add a new task to your board
-								</DialogDescription>
-							</DialogHeader>
-							<form
-								onSubmit={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									form.handleSubmit();
-								}}
-							>
-								<div className="space-y-4 pt-4">
-									<form.Field name="title">
-										{(field) => (
-											<div className="space-y-2">
-												<Label htmlFor="title">Title</Label>
-												<Input
-													id={"title"}
-													placeholder="Task title"
-													value={field.state.value}
-													onChange={(e) => field.handleChange(e.target.value)}
-												/>
-											</div>
-										)}
-									</form.Field>
-
-									<form.Field name="description">
-										{(field) => (
-											<div className="space-y-2">
-												<Label htmlFor="description">Description</Label>
-												<Textarea
-													id={"description"}
-													placeholder="Task description"
-													value={field.state.value}
-													onChange={(e) => field.handleChange(e.target.value)}
-													className="min-h-[100px]"
-												/>
-											</div>
-										)}
-									</form.Field>
-
-									<form.Field name="assignee">
-										{(field) => (
-											<div className="space-y-2">
-												<Label htmlFor="assignee">Assign to</Label>
-												<Select
-													value={field.state.value}
-													onValueChange={field.handleChange}
-												>
-													<SelectTrigger id={"assignee"}>
-														<SelectValue placeholder="Select team member" />
-													</SelectTrigger>
-													<SelectContent>
-														{workspaceMembers?.members?.map((member) => (
-															<SelectItem key={member.id} value={member.id}>
-																<div className="flex items-center gap-2">
-																	<Avatar className="w-5 h-5">
-																		<AvatarImage
-																			src={
-																				member.user.image || "/placeholder.svg"
-																			}
-																		/>
-																		<AvatarFallback className="text-xs">
-																			{member.user.name[0]}
-																		</AvatarFallback>
-																	</Avatar>
-																	{member.user.name}
-																</div>
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
-											</div>
-										)}
-									</form.Field>
-
-									<div className="grid grid-cols-2 gap-4">
-										<form.Field name="priority">
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>Create new task</DialogTitle>
+									<DialogDescription>
+										Add a new task to your board
+									</DialogDescription>
+								</DialogHeader>
+								<form
+									onSubmit={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										form.handleSubmit();
+									}}
+								>
+									<div className="space-y-4 pt-4">
+										<form.Field name="title">
 											{(field) => (
 												<div className="space-y-2">
-													<Label htmlFor="priority">Priority</Label>
-													<Select
-														value={field.state.value}
-														onValueChange={(v) =>
-															field.handleChange(v as "low" | "medium" | "high")
-														}
-													>
-														<SelectTrigger id={"priority"}>
-															<SelectValue />
-														</SelectTrigger>
-														<SelectContent>
-															<SelectItem value="low">Low</SelectItem>
-															<SelectItem value="medium">Medium</SelectItem>
-															<SelectItem value="high">High</SelectItem>
-														</SelectContent>
-													</Select>
-												</div>
-											)}
-										</form.Field>
-
-										<form.Field name="dueDate">
-											{(field) => (
-												<div className="space-y-2">
-													<Label htmlFor="dueDate">Due Date</Label>
+													<Label htmlFor="title">Title</Label>
 													<Input
-														id={"dueDate"}
-														type="date"
+														id={"title"}
+														placeholder="Task title"
 														value={field.state.value}
 														onChange={(e) => field.handleChange(e.target.value)}
 													/>
 												</div>
 											)}
 										</form.Field>
+
+										<form.Field name="description">
+											{(field) => (
+												<div className="space-y-2">
+													<Label htmlFor="description">Description</Label>
+													<Textarea
+														id={"description"}
+														placeholder="Task description"
+														value={field.state.value}
+														onChange={(e) => field.handleChange(e.target.value)}
+														className="min-h-[100px]"
+													/>
+												</div>
+											)}
+										</form.Field>
+
+										<form.Field name="assignee">
+											{(field) => (
+												<div className="space-y-2">
+													<Label htmlFor="assignee">Assign to</Label>
+													<Select
+														value={field.state.value}
+														onValueChange={field.handleChange}
+													>
+														<SelectTrigger id={"assignee"}>
+															<SelectValue placeholder="Select team member" />
+														</SelectTrigger>
+														<SelectContent>
+															{workspaceMembers?.members?.map((member) => (
+																<SelectItem key={member.id} value={member.id}>
+																	<div className="flex items-center gap-2">
+																		<Avatar className="w-5 h-5">
+																			<AvatarImage
+																				src={
+																					member.user.image ||
+																					"/placeholder.svg"
+																				}
+																			/>
+																			<AvatarFallback className="text-xs">
+																				{member.user.name[0]}
+																			</AvatarFallback>
+																		</Avatar>
+																		{member.user.name}
+																	</div>
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												</div>
+											)}
+										</form.Field>
+
+										<div className="grid grid-cols-2 gap-4">
+											<form.Field name="priority">
+												{(field) => (
+													<div className="space-y-2">
+														<Label htmlFor="priority">Priority</Label>
+														<Select
+															value={field.state.value}
+															onValueChange={(v) =>
+																field.handleChange(
+																	v as "low" | "medium" | "high",
+																)
+															}
+														>
+															<SelectTrigger id={"priority"}>
+																<SelectValue />
+															</SelectTrigger>
+															<SelectContent>
+																<SelectItem value="low">Low</SelectItem>
+																<SelectItem value="medium">Medium</SelectItem>
+																<SelectItem value="high">High</SelectItem>
+															</SelectContent>
+														</Select>
+													</div>
+												)}
+											</form.Field>
+
+											<form.Field name="dueDate">
+												{(field) => (
+													<div className="space-y-2">
+														<Label htmlFor="dueDate">Due Date</Label>
+														<Input
+															id={"dueDate"}
+															type="date"
+															value={field.state.value}
+															onChange={(e) =>
+																field.handleChange(e.target.value)
+															}
+														/>
+													</div>
+												)}
+											</form.Field>
+										</div>
+										<div className="flex justify-end gap-2 pt-4">
+											<Button
+												variant="outline"
+												onClick={() => setIsAddingTask(false)}
+											>
+												Cancel
+											</Button>
+											<Button disabled={isLoading} type="submit">
+												Create Task
+											</Button>
+										</div>
 									</div>
-									<div className="flex justify-end gap-2 pt-4">
-										<Button
-											variant="outline"
-											onClick={() => setIsAddingTask(false)}
-										>
-											Cancel
-										</Button>
-										<Button disabled={isLoading} type="submit">
-											Create Task
-										</Button>
-									</div>
-								</div>
-							</form>
-						</DialogContent>
-					</Dialog>
+								</form>
+							</DialogContent>
+						</Dialog>
 					)}
 
 					<Button variant="outline" size="sm">
@@ -589,7 +596,9 @@ function RouteComponent() {
 													{canUpdateTask && (
 														<>
 															<DropdownMenuItem>Edit task</DropdownMenuItem>
-															<DropdownMenuItem>Change assignee</DropdownMenuItem>
+															<DropdownMenuItem>
+																Change assignee
+															</DropdownMenuItem>
 															<DropdownMenuItem>Move to...</DropdownMenuItem>
 														</>
 													)}
@@ -628,7 +637,10 @@ function RouteComponent() {
 
 										{/* AI subtask generation button for todo and inprogress tasks */}
 										{canCreateTask &&
-											(task.status === "todo" || task.status === "inprogress") &&
+											(task.status === "todo" ||
+												task.status === "inprogress") &&
+											(task.createdBy === currentMember?.id ||
+												currentMember?.role === "owner") &&
 											task.subTasks.length === 0 && (
 												<Button
 													variant="outline"
@@ -671,14 +683,14 @@ function RouteComponent() {
 																	onClick={() => toggleSubtask(subtask)}
 																	className="shrink-0 mt-0.5"
 																>
-																<CheckCircle2
-																	className={`w-3.5 h-3.5 ${
-																		subtask.status === "done"
-																			? "text-primary fill-primary"
-																			: "text-muted-foreground"
-																	}`}
-																/>
-															</button>
+																	<CheckCircle2
+																		className={`w-3.5 h-3.5 ${
+																			subtask.status === "done"
+																				? "text-primary fill-primary"
+																				: "text-muted-foreground"
+																		}`}
+																	/>
+																</button>
 															)}
 															<span
 																className={`leading-relaxed flex-1 ${
