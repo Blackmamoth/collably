@@ -7,7 +7,7 @@ import { validateProjectAccess } from "./helpers/authorization";
 
 export const getWorkspaces = query({
 	args: {},
-	handler: async (ctx, args) => {
+	handler: async (ctx) => {
 		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 		const workspaces = await auth.api.listOrganizations({ headers: headers });
 		return workspaces;
@@ -15,28 +15,54 @@ export const getWorkspaces = query({
 });
 
 export const getWorkspaceMembers = query({
-	args: {},
+	args: {
+		limit: v.optional(v.number()),
+		offset: v.optional(v.number()),
+	},
 	handler: async (ctx, args) => {
 		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const workspaceMembers = await auth.api.listMembers({ headers: headers });
+		const workspaceMembers = await auth.api.listMembers({
+			headers: headers,
+			query: {
+				limit: args.limit ?? 10,
+				offset: args.offset ?? 0,
+			},
+		});
 		return workspaceMembers;
 	},
 });
 
 export const getWorkspaceInvitations = query({
-	args: {},
+	args: {
+		limit: v.optional(v.number()),
+		offset: v.optional(v.number()),
+	},
 	handler: async (ctx, args) => {
 		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
-		const workspaceInvitations = await auth.api.listInvitations({
+		// Fetch all invitations first (API might not support pagination)
+		const allInvitations = await auth.api.listInvitations({
 			headers: headers,
 		});
-		return workspaceInvitations;
+		
+		// Handle pagination client-side if API doesn't support it
+		const invitations = Array.isArray(allInvitations) 
+			? allInvitations 
+			: (allInvitations as { invitations?: unknown[] }).invitations || [];
+		
+		const limit = args.limit ?? 10;
+		const offset = args.offset ?? 0;
+		const paginatedInvitations = invitations.slice(offset, offset + limit);
+		
+		return {
+			invitations: paginatedInvitations as typeof invitations,
+			total: invitations.length,
+		};
 	},
 });
 
 export const deleteWorkspace = mutation({
 	args: {},
-	handler: async (ctx, args) => {
+	handler: async (ctx) => {
 		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 
 		const member = await auth.api.getActiveMember({ headers });

@@ -1,24 +1,19 @@
-import { createFileRoute, redirect, Link } from "@tanstack/react-router";
-
-import { useState, useMemo, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import type { Invitation } from "better-auth/plugins";
+import { api } from "convex/_generated/api";
+import { useQuery } from "convex/react";
+import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, MoreVertical, Search } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import CancelInvitationDialog from "@/components/dashboard/team/cancel-invitation-dialog";
+import ChangeRoleDialog from "@/components/dashboard/team/change-role-dialog";
+import InvitationList from "@/components/dashboard/team/invitation-list";
+import InviteMemberDialog from "@/components/dashboard/team/invite-member-dialog";
+import RemoveMemberDialog from "@/components/dashboard/team/remove-member-dialog";
+import ViewProfileDialog from "@/components/dashboard/team/view-profile-dialog";
+import { NoTeamMembersEmpty } from "@/components/empty-states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -26,20 +21,24 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { ArrowLeft, Search, MoreVertical, Calendar } from "lucide-react";
-import { NoTeamMembersEmpty } from "@/components/empty-states";
-import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
-import type { WorkspaceMember } from "@/lib/common/types";
-import type { Invitation } from "better-auth/plugins";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { formatDateSince } from "@/lib/common/helper";
+import type { WorkspaceMember } from "@/lib/common/types";
 import { useWorkspace } from "@/lib/workspace-context";
-import InviteMemberDialog from "@/components/dashboard/team/invite-member-dialog";
-import InvitationList from "@/components/dashboard/team/invitation-list";
-import ViewProfileDialog from "@/components/dashboard/team/view-profile-dialog";
-import ChangeRoleDialog from "@/components/dashboard/team/change-role-dialog";
-import RemoveMemberDialog from "@/components/dashboard/team/remove-member-dialog";
-import CancelInvitationDialog from "@/components/dashboard/team/cancel-invitation-dialog";
 
 export const Route = createFileRoute("/dashboard/team")({
 	component: RouteComponent,
@@ -67,10 +66,22 @@ function RouteComponent() {
 	);
 	const [selectedInvite, setSelectedInvite] = useState<Invitation | null>(null);
 	const [selectedRole, setSelectedRole] = useState("");
+	const [currentPage, setCurrentPage] = useState(1);
+	const [currentInvitePage, setCurrentInvitePage] = useState(1);
+	const itemsPerPage = 10;
 
-	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers);
-	const workspaceInvitations =
-		useQuery(api.workspace.getWorkspaceInvitations) || [];
+	const offset = (currentPage - 1) * itemsPerPage;
+	const inviteOffset = (currentInvitePage - 1) * itemsPerPage;
+	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers, {
+		limit: itemsPerPage,
+		offset: offset,
+	});
+	const workspaceInvitationsResponse = useQuery(api.workspace.getWorkspaceInvitations, {
+		limit: itemsPerPage,
+		offset: inviteOffset,
+	});
+	// Response is always { invitations: [], total: number }
+	const workspaceInvitations = (workspaceInvitationsResponse?.invitations || []) as Invitation[];
 
 	const workspace = useWorkspace();
 
@@ -96,6 +107,26 @@ function RouteComponent() {
 
 		return members;
 	}, [workspaceMembers?.members, searchQuery, roleFilter]);
+
+	// Reset to page 1 when filters change
+	const handleFilterChange = useCallback(() => {
+		setCurrentPage(1);
+	}, []);
+
+	// Calculate pagination info for members
+	// Note: If API returns total count, use it; otherwise estimate based on current page
+	const hasMorePages = workspaceMembers?.members?.length === itemsPerPage;
+	// Try to get total from API response, fallback to estimating
+	const totalMembers = workspaceMembers && 'total' in workspaceMembers 
+		? (workspaceMembers as { total: number }).total 
+		: null;
+	const estimatedTotal = totalMembers ?? (hasMorePages ? (currentPage * itemsPerPage) + 1 : offset + (workspaceMembers?.members?.length ?? 0));
+	const totalPages = totalMembers ? Math.ceil(totalMembers / itemsPerPage) : (hasMorePages ? currentPage + 1 : currentPage);
+
+	// Calculate pagination info for invitations
+	const hasMoreInvitePages = workspaceInvitations.length === itemsPerPage;
+	const totalInvitations = workspaceInvitationsResponse?.total ?? null;
+	const totalInvitePages = totalInvitations ? Math.ceil(totalInvitations / itemsPerPage) : (hasMoreInvitePages ? currentInvitePage + 1 : currentInvitePage);
 
 	const handleViewProfile = useCallback((member: WorkspaceMember) => {
 		setSelectedMember(member);
@@ -158,18 +189,24 @@ function RouteComponent() {
 								placeholder="Search members..."
 								className="pl-9"
 								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
+								onChange={(e) => {
+									setSearchQuery(e.target.value);
+									handleFilterChange();
+								}}
 							/>
 						</div>
-						<Select value={roleFilter} onValueChange={setRoleFilter}>
+						<Select value={roleFilter} onValueChange={(value) => {
+							setRoleFilter(value);
+							handleFilterChange();
+						}}>
 							<SelectTrigger className="w-40">
 								<SelectValue placeholder="Filter by role" />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All roles</SelectItem>
 								<SelectItem value="owner">Owner</SelectItem>
-								<SelectItem value="admin">Admin</SelectItem>
 								<SelectItem value="member">Member</SelectItem>
+								<SelectItem value="viewer">Viewer</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
@@ -181,7 +218,7 @@ function RouteComponent() {
 								Total Members
 							</p>
 							<p className="text-2xl font-bold">
-								{workspaceMembers?.members.length || 0}
+								{totalMembers ?? estimatedTotal}
 							</p>
 						</div>
 						<div className="p-4 border border-border rounded-lg">
@@ -192,17 +229,18 @@ function RouteComponent() {
 						</div>
 						<div className="p-4 border border-border rounded-lg">
 							<p className="text-sm text-muted-foreground mb-1">
-								Pending Invites
+								Invitations
 							</p>
 							<p className="text-2xl font-bold">
-								{workspaceInvitations.length}
+								{totalInvitations ?? 0}
 							</p>
 						</div>
 					</div>
 
 					{/* Members Table */}
 					{workspaceMembers?.members.length === 0 &&
-					workspaceInvitations.length === 0 ? (
+					workspaceInvitations.length === 0 &&
+					!workspaceInvitationsResponse ? (
 						<NoTeamMembersEmpty onInvite={() => setIsInviteOpen(true)} />
 					) : (
 						<>
@@ -312,11 +350,121 @@ function RouteComponent() {
 								</table>
 							</div>
 
+							{/* Members Pagination Controls */}
+							<div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+								<div className="text-sm text-muted-foreground">
+									Showing {offset + 1} to {Math.min(offset + itemsPerPage, estimatedTotal)} of {totalMembers ? totalMembers : `${estimatedTotal}+`} members
+								</div>
+								<div className="flex items-center gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+										disabled={currentPage === 1}
+									>
+										<ChevronLeft className="w-4 h-4" />
+										Previous
+									</Button>
+									{totalPages > 1 && (
+										<div className="flex items-center gap-1">
+											{Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+												let pageNum: number;
+												if (totalPages <= 5) {
+													pageNum = i + 1;
+												} else if (currentPage <= 3) {
+													pageNum = i + 1;
+												} else if (currentPage >= totalPages - 2) {
+													pageNum = totalPages - 4 + i;
+												} else {
+													pageNum = currentPage - 2 + i;
+												}
+												return (
+													<Button
+														key={pageNum}
+														variant={currentPage === pageNum ? "default" : "outline"}
+														size="sm"
+														className="w-9"
+														onClick={() => setCurrentPage(pageNum)}
+													>
+														{pageNum}
+													</Button>
+												);
+											})}
+										</div>
+									)}
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+										disabled={currentPage === totalPages || !hasMorePages}
+									>
+										Next
+										<ChevronRight className="w-4 h-4" />
+									</Button>
+								</div>
+							</div>
+
 							{workspaceInvitations.length > 0 && (
-								<InvitationList
-									handleCancelInvite={handleCancelInvite}
-									workspaceInvitations={workspaceInvitations}
-								/>
+								<>
+									<InvitationList
+										handleCancelInvite={handleCancelInvite}
+										workspaceInvitations={workspaceInvitations}
+									/>
+
+									{/* Invitations Pagination Controls */}
+									<div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+										<div className="text-sm text-muted-foreground">
+											Showing {inviteOffset + 1} to {Math.min(inviteOffset + itemsPerPage, totalInvitations ?? 0)} of {totalInvitations ?? 0} invitations
+										</div>
+										<div className="flex items-center gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => setCurrentInvitePage((p) => Math.max(1, p - 1))}
+												disabled={currentInvitePage === 1}
+											>
+												<ChevronLeft className="w-4 h-4" />
+												Previous
+											</Button>
+											{totalInvitePages > 1 && (
+												<div className="flex items-center gap-1">
+													{Array.from({ length: Math.min(5, totalInvitePages) }, (_, i) => {
+														let pageNum: number;
+														if (totalInvitePages <= 5) {
+															pageNum = i + 1;
+														} else if (currentInvitePage <= 3) {
+															pageNum = i + 1;
+														} else if (currentInvitePage >= totalInvitePages - 2) {
+															pageNum = totalInvitePages - 4 + i;
+														} else {
+															pageNum = currentInvitePage - 2 + i;
+														}
+														return (
+															<Button
+																key={pageNum}
+																variant={currentInvitePage === pageNum ? "default" : "outline"}
+																size="sm"
+																className="w-9"
+																onClick={() => setCurrentInvitePage(pageNum)}
+															>
+																{pageNum}
+															</Button>
+														);
+													})}
+												</div>
+											)}
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => setCurrentInvitePage((p) => Math.min(totalInvitePages, p + 1))}
+												disabled={currentInvitePage === totalInvitePages || !hasMoreInvitePages}
+											>
+												Next
+												<ChevronRight className="w-4 h-4" />
+											</Button>
+										</div>
+									</div>
+								</>
 							)}
 						</>
 					)}

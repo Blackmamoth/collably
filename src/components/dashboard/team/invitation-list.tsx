@@ -16,7 +16,7 @@ export default function InvitationList({
 	return (
 		<div className="space-y-3">
 			<div className="flex items-center gap-2">
-				<h3 className="text-sm font-medium">Pending Invitations</h3>
+				<h3 className="text-sm font-medium">Invitations</h3>
 				<Badge variant="outline">{workspaceInvitations.length}</Badge>
 			</div>
 			<div className="space-y-2">
