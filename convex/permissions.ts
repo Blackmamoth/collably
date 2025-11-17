@@ -6,6 +6,7 @@ const statement = {
 	invitation: ["create", "read", "cancel"],
 	member: ["create", "update", "delete"],
 	task: ["create", "update", "delete"],
+	decisionBoard: ["create", "update", "delete"],
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -16,6 +17,7 @@ export const owner = ac.newRole({
 	invitation: ["create", "read", "cancel"],
 	member: ["create", "update", "delete"],
 	task: ["create", "update", "delete"],
+	decisionBoard: ["create", "update", "delete"],
 });
 
 export const member = ac.newRole({
@@ -23,6 +25,7 @@ export const member = ac.newRole({
 	project: ["create"],
 	invitation: ["create", "read"],
 	task: ["create", "update", "delete"],
+	decisionBoard: ["create", "update", "delete"],
 });
 
 export const viewer = ac.newRole({

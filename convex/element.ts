@@ -14,7 +14,7 @@ import {
 export const getElements = query({
 	args: { projectId: v.id("project") },
 	handler: async (ctx, { projectId }) => {
-		const {  member } = await validateProjectAccess(ctx, projectId);
+		const { member } = await validateProjectAccess(ctx, projectId);
 
 		const elements = await ctx.db
 			.query("element")
@@ -100,7 +100,10 @@ export const insertElement = mutation({
 		}),
 	},
 	handler: async (ctx, { element }) => {
-		const { project, member } = await validateProjectAccess(ctx, element.projectId);
+		const { project, member } = await validateProjectAccess(
+			ctx,
+			element.projectId,
+		);
 
 		const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 
@@ -109,7 +112,7 @@ export const insertElement = mutation({
 			headers,
 			body: {
 				permissions: {
-					project: ["update"],
+					decisionBoard: ["create"],
 				},
 			},
 		});
@@ -171,12 +174,22 @@ export const updateElement = mutation({
 			headers,
 			body: {
 				permissions: {
-					project: ["update"],
+					decisionBoard: ["update"],
 				},
 			},
 		});
 
 		if (!permissionResult.success) {
+			throw new ConvexError("you do not have permission to update elements");
+		}
+
+		const element = await ctx.db.get(id);
+		if (!element) {
+			throw new ConvexError("element you're trying to update doesn't exist");
+		}
+
+		const currentMember = await auth.api.getActiveMember({ headers: headers });
+		if (!currentMember || currentMember.id !== element.createdBy) {
 			throw new ConvexError("you do not have permission to update elements");
 		}
 
@@ -196,7 +209,7 @@ export const deleteElement = mutation({
 			headers,
 			body: {
 				permissions: {
-					project: ["update"],
+					decisionBoard: ["delete"],
 				},
 			},
 		});
