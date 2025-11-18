@@ -72,9 +72,16 @@ export const Route = createFileRoute("/dashboard/project/$projectId/settings")({
 		const { projectId } = params;
 
 		try {
-			await context.convexClient.query(api.project.getProject, {
-				projectId: projectId as Id<"project">,
-			});
+			// Use serverHttpClient for authenticated server-side queries
+			if (!context.convexQueryClient.serverHttpClient) {
+				throw new Error("Server HTTP client not available");
+			}
+			await context.convexQueryClient.serverHttpClient.query(
+				api.project.getProject,
+				{
+					projectId: projectId as Id<"project">,
+				},
+			);
 			return { user };
 		} catch (error: unknown) {
 			throw redirect({ to: "/dashboard" });

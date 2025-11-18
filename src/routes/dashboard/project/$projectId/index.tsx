@@ -1,33 +1,33 @@
 import {
 	createFileRoute,
-	useParams,
 	Link,
 	redirect,
+	useParams,
 } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { api } from "convex/_generated/api";
+import type { Id } from "convex/_generated/dataModel";
+import { useQuery } from "convex/react";
+import {
+	ArrowLeft,
+	CheckCircle2,
+	Clock,
+	Kanban,
+	Layers,
+	MoreVertical,
+	Settings,
+	TrendingUp,
+	Users,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-	ArrowLeft,
-	Settings,
-	Users,
-	Layers,
-	Kanban,
-	Clock,
-	TrendingUp,
-	CheckCircle2,
-	MoreVertical,
-} from "lucide-react";
-import { api } from "convex/_generated/api";
-import type { Id } from "convex/_generated/dataModel";
-import { useQuery } from "convex/react";
 
 export const Route = createFileRoute("/dashboard/project/$projectId/")({
 	component: RouteComponent,
@@ -44,9 +44,16 @@ export const Route = createFileRoute("/dashboard/project/$projectId/")({
 		const { projectId } = params;
 
 		try {
-			const project = await context.convexClient.query(api.project.getProject, {
-				projectId: projectId as Id<"project">,
-			});
+			// Use serverHttpClient for authenticated server-side queries
+			if (!context.convexQueryClient.serverHttpClient) {
+				throw new Error("Server HTTP client not available");
+			}
+			const project = await context.convexQueryClient.serverHttpClient.query(
+				api.project.getProject,
+				{
+					projectId: projectId as Id<"project">,
+				},
+			);
 			return { project };
 		} catch (error: unknown) {
 			throw redirect({ to: "/dashboard" });
@@ -59,7 +66,7 @@ function RouteComponent() {
 
 	const { project } = Route.useLoaderData();
 
-	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers);
+	const workspaceMembers = useQuery(api.workspace.getWorkspaceMembers, {});
 
 	const projectStats = useQuery(api.project.getProjectStats, {
 		projectId: project._id,

@@ -88,6 +88,8 @@ export const Route = createRootRouteWithContext<{
 		const { user, session, token } = await fetchAuth();
 
 		if (token) {
+			// Set auth token on ConvexQueryClient for server-side queries
+			// Loaders should use convexQueryClient.serverHttpClient.query() for authenticated queries
 			ctx.context.convexQueryClient.serverHttpClient?.setAuth(token);
 		}
 
