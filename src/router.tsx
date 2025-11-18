@@ -8,7 +8,7 @@ import { ConvexQueryClient } from "@convex-dev/react-query";
 import { QueryClient } from "@tanstack/react-query";
 
 // Create a new router instance
-export const getRouter = () => {
+function getRouter() {
 	const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL || "";
 	if (!CONVEX_URL) {
 		throw new Error("missing VITE_CONVEX_URL envar");
@@ -43,4 +43,10 @@ export const getRouter = () => {
 	);
 
 	return router;
-};
+}
+
+// Export as named export for compatibility with dynamic imports
+export { getRouter };
+
+// Also export as default for maximum compatibility
+export default getRouter;
